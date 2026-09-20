@@ -22,4 +22,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/structures/collect', [StructureController::class, 'collectAll']);
     Route::post('/structures/{structure}/collect', [StructureController::class, 'collect']);
     Route::post('/structures/{structure}/upgrade', [StructureController::class, 'upgrade']);
+    Route::delete('/structures/{structure}', [StructureController::class, 'demolish']);
 });

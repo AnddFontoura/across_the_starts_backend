@@ -98,6 +98,19 @@ class Base extends Model
     }
 
     /**
+     * Add resource to the balance WITHOUT counting toward lifetime totals.
+     * Used for refunds (demolition), which aren't "collected" production.
+     */
+    public function creditResourceRaw(string $resource, int $amount): void
+    {
+        if ($amount <= 0 || ! in_array($resource, ['gold', 'metal', 'energy'], true)) {
+            return;
+        }
+
+        $this->increment($resource, $amount);
+    }
+
+    /**
      * Total protection provided by all storage structures, per resource.
      * (Currently the same value applies to each of the three resources.)
      */
@@ -106,5 +119,111 @@ class Base extends Model
         return $this->structures
             ->filter(fn ($s) => $s->type->isStorage())
             ->sum(fn ($s) => $s->protection());
+    }
+
+    /**
+     * The Command Center structure of this base, if any.
+     */
+    public function commandStructure(): ?Structure
+    {
+        return $this->structures->first(fn ($s) => $s->type->isCommand());
+    }
+
+    /**
+     * Current level of the (constructed) Command Center. Returns 0 when there
+     * is no command structure or it's still under construction. This is the
+     * cap that other structures can be upgraded to.
+     */
+    public function commandLevel(): int
+    {
+        $command = $this->commandStructure();
+
+        if (! $command || ! $command->is_constructed) {
+            return 0;
+        }
+
+        return $command->level;
+    }
+
+    /**
+     * Effective maximum number of structures allowed on this base: the global
+     * base limit plus the construction slots granted by the Command Center.
+     */
+    public function effectiveMaxStructures(): int
+    {
+        $baseLimit = (int) GameSetting::get('max_structures_per_base', 20);
+
+        $bonus = $this->structures->sum(fn ($s) => $s->structureSlots());
+
+        return $baseLimit + $bonus;
+    }
+
+    /**
+     * Maximum number of structures allowed for a whole category, configurable
+     * via game settings. Producers are NOT limited per-category (they are
+     * limited per-type via maxForProducerType); null means no category limit.
+     */
+    public function maxForCategory(string $category): ?int
+    {
+        return match ($category) {
+            'command' => (int) GameSetting::get('max_command_per_base', 1),
+            'storage' => (int) GameSetting::get('max_storage_per_base', 1),
+            default => null,
+        };
+    }
+
+    /**
+     * Maximum number of producer structures allowed PER TYPE (e.g. up to 10
+     * Gold Mines AND up to 10 Metal Mines). Null for non-producer categories.
+     */
+    public function maxForProducerType(string $category): ?int
+    {
+        if ($category !== 'producer') {
+            return null;
+        }
+
+        return (int) GameSetting::get('max_producers_per_type', 10);
+    }
+
+    /**
+     * How many structures of a given category currently exist on this base
+     * (including any that are still under construction).
+     */
+    public function countForCategory(string $category): int
+    {
+        return $this->structures
+            ->filter(fn ($s) => $s->type->category === $category)
+            ->count();
+    }
+
+    /**
+     * How many structures of a specific type currently exist on this base
+     * (including any that are still under construction).
+     */
+    public function countForType(int $structureTypeId): int
+    {
+        return $this->structures
+            ->filter(fn ($s) => $s->structure_type_id === $structureTypeId)
+            ->count();
+    }
+
+    /**
+     * How many structures are currently under construction or upgrading
+     * (their build/upgrade timer hasn't elapsed yet).
+     */
+    public function busyStructuresCount(): int
+    {
+        return $this->structures
+            ->filter(fn ($s) => $s->isBusy())
+            ->count();
+    }
+
+    /**
+     * Maximum number of simultaneous builds/upgrades allowed on this base.
+     * Configurable via game settings.
+     */
+    public function maxConcurrentBuilds(): int
+    {
+        return (int) GameSetting::get('max_concurrent_builds', 5);
     }
 }

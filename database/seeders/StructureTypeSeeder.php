@@ -10,7 +10,7 @@ class StructureTypeSeeder extends Seeder
     /**
      * Initial structures. Each occupies a 20x20 footprint (generic units).
      *
-     * Producers create one resource per hour (up to a capacity ceiling).
+     * Producers create resource per minute (up to a capacity ceiling).
      * The Warehouse is a storage structure: it produces nothing but protects
      * an amount of each resource, and its upgrade costs all three resources.
      *
@@ -23,7 +23,7 @@ class StructureTypeSeeder extends Seeder
             [
                 'key' => 'gold_mine',
                 'name' => 'Mina de Ouro',
-                'description' => 'Produz ouro a cada hora.',
+                'description' => 'Produz ouro a cada minuto.',
                 'category' => 'producer',
                 'width' => 20,
                 'height' => 20,
@@ -31,10 +31,12 @@ class StructureTypeSeeder extends Seeder
                 'production_per_hour' => 100,
                 'color' => '#f4c542',
                 'max_level' => 30,
+                // TEMP (testes): produção linear +100/min por nível (growth 0 = linear).
                 'production_base' => 100,
-                'production_growth' => 1.150,
-                'capacity_base' => 500,
-                'capacity_growth' => 1.200,
+                'production_growth' => 0,
+                // TEMP (testes): capacidade folgada para não cortar a produção.
+                'capacity_base' => 1000000,
+                'capacity_growth' => 0,
                 'protection_base' => 0,
                 'protection_growth' => 1.000,
                 // Costs mostly gold, a little metal.
@@ -52,18 +54,20 @@ class StructureTypeSeeder extends Seeder
             [
                 'key' => 'metal_mine',
                 'name' => 'Mina de Metal',
-                'description' => 'Produz metal a cada hora.',
+                'description' => 'Produz metal a cada minuto.',
                 'category' => 'producer',
                 'width' => 20,
                 'height' => 20,
                 'resource' => 'metal',
-                'production_per_hour' => 80,
+                'production_per_hour' => 100,
                 'color' => '#9aa5b1',
                 'max_level' => 30,
-                'production_base' => 80,
-                'production_growth' => 1.150,
-                'capacity_base' => 400,
-                'capacity_growth' => 1.200,
+                // TEMP (testes): produção linear +100/min por nível (growth 0 = linear).
+                'production_base' => 100,
+                'production_growth' => 0,
+                // TEMP (testes): capacidade folgada para não cortar a produção.
+                'capacity_base' => 1000000,
+                'capacity_growth' => 0,
                 'protection_base' => 0,
                 'protection_growth' => 1.000,
                 'upgrade_cost_gold_base' => 60,
@@ -79,18 +83,20 @@ class StructureTypeSeeder extends Seeder
             [
                 'key' => 'power_plant',
                 'name' => 'Gerador de Eletricidade',
-                'description' => 'Produz eletricidade a cada hora.',
+                'description' => 'Produz eletricidade a cada minuto.',
                 'category' => 'producer',
                 'width' => 20,
                 'height' => 20,
                 'resource' => 'energy',
-                'production_per_hour' => 60,
+                'production_per_hour' => 100,
                 'color' => '#4fc3f7',
                 'max_level' => 30,
-                'production_base' => 60,
-                'production_growth' => 1.150,
-                'capacity_base' => 300,
-                'capacity_growth' => 1.200,
+                // TEMP (testes): produção linear +100/min por nível (growth 0 = linear).
+                'production_base' => 100,
+                'production_growth' => 0,
+                // TEMP (testes): capacidade folgada para não cortar a produção.
+                'capacity_base' => 1000000,
+                'capacity_growth' => 0,
                 'protection_base' => 0,
                 'protection_growth' => 1.000,
                 'upgrade_cost_gold_base' => 80,
@@ -108,8 +114,8 @@ class StructureTypeSeeder extends Seeder
                 'name' => 'Depósito',
                 'description' => 'Protege uma quantidade de cada recurso de ser saqueada em ataques.',
                 'category' => 'storage',
-                'width' => 20,
-                'height' => 20,
+                'width' => 30,
+                'height' => 40,
                 'resource' => 'gold', // nominal; storage doesn't produce
                 'production_per_hour' => 0,
                 'color' => '#b07d4f',
@@ -130,6 +136,40 @@ class StructureTypeSeeder extends Seeder
                 'upgrade_cost_energy_growth' => 1.500,
                 'build_time' => 60,
                 'upgrade_time_base' => 120,
+                'upgrade_time_growth' => 1.400,
+            ],
+            [
+                'key' => 'command_center',
+                'name' => 'Centro de Operações',
+                'description' => 'Prédio principal da base. Aumenta o limite de construções e define o nível máximo das demais estruturas.',
+                'category' => 'command',
+                // 3x the size of the 20x20 resource structures.
+                'width' => 60,
+                'height' => 60,
+                'resource' => 'gold', // nominal; command doesn't produce
+                'production_per_hour' => 0,
+                'color' => '#c9b037',
+                'max_level' => 30,
+                'production_base' => 0,
+                'production_growth' => 1.000,
+                'capacity_base' => 0,
+                'capacity_growth' => 1.000,
+                'protection_base' => 0,
+                'protection_growth' => 1.000,
+                // Only one Command Center per base.
+                'is_unique' => true,
+                // Grants +2 construction slots per level (linear: growth 0).
+                'structure_slots_base' => 2,
+                'structure_slots_growth' => 0,
+                // Upgrade costs all three resources, more than the others.
+                'upgrade_cost_gold_base' => 500,
+                'upgrade_cost_gold_growth' => 1.600,
+                'upgrade_cost_metal_base' => 500,
+                'upgrade_cost_metal_growth' => 1.600,
+                'upgrade_cost_energy_base' => 300,
+                'upgrade_cost_energy_growth' => 1.600,
+                'build_time' => 90,
+                'upgrade_time_base' => 180,
                 'upgrade_time_growth' => 1.400,
             ],
         ];

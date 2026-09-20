@@ -46,6 +46,13 @@ return new class extends Migration
             $table->unsignedInteger('build_time')->default(0)->after('upgrade_cost_energy_growth'); // seconds
             $table->unsignedInteger('upgrade_time_base')->default(0)->after('build_time');          // seconds (level 2)
             $table->decimal('upgrade_time_growth', 6, 3)->default(1.400)->after('upgrade_time_base');
+
+            // Only one instance of this type is allowed per base (e.g. Command Center).
+            $table->boolean('is_unique')->default(false)->after('upgrade_time_growth');
+
+            // Extra construction slots granted to the base per level (command).
+            $table->unsignedInteger('structure_slots_base')->default(0)->after('is_unique');
+            $table->decimal('structure_slots_growth', 6, 3)->default(0)->after('structure_slots_base');
         });
     }
 
@@ -70,6 +77,9 @@ return new class extends Migration
                 'build_time',
                 'upgrade_time_base',
                 'upgrade_time_growth',
+                'is_unique',
+                'structure_slots_base',
+                'structure_slots_growth',
             ]);
         });
     }

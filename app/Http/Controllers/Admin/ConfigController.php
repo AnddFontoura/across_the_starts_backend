@@ -37,7 +37,7 @@ class ConfigController extends Controller
         for ($level = 1; $level <= $structureType->max_level; $level++) {
             $preview[] = [
                 'level' => $level,
-                'production' => $this->calculator->productionPerHour($structureType, $level),
+                'production' => $this->calculator->productionPerMinute($structureType, $level),
                 'capacity' => $this->calculator->maxCapacity($structureType, $level),
                 'protection' => $this->calculator->protection($structureType, $level),
                 'upgrade_cost' => $this->calculator->upgradeCost($structureType, $level),
@@ -60,7 +60,7 @@ class ConfigController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'category' => ['required', 'in:producer,storage'],
+            'category' => ['required', 'in:producer,storage,command'],
             'resource' => ['required', 'in:gold,metal,energy'],
             'color' => ['required', 'string', 'max:20'],
             'width' => ['required', 'integer', 'min:1'],
@@ -81,12 +81,18 @@ class ConfigController extends Controller
             'build_time' => ['required', 'integer', 'min:0'],
             'upgrade_time_base' => ['required', 'integer', 'min:0'],
             'upgrade_time_growth' => ['required', 'numeric', 'min:1', 'max:10'],
+            'is_unique' => ['nullable', 'boolean'],
+            'structure_slots_base' => ['required', 'integer', 'min:0'],
+            'structure_slots_growth' => ['required', 'numeric', 'min:0', 'max:10'],
         ]);
 
+        // Unchecked checkbox doesn't submit; normalize to false.
+        $data['is_unique'] = $request->boolean('is_unique');
+
         $structureType->update($data);
-        // Keep the display reference in sync with level 1 production.
+        // Keep the display reference in sync with level 1 production (per minute).
         $structureType->update([
-            'production_per_hour' => $this->calculator->productionPerHour($structureType->fresh(), 1),
+            'production_per_hour' => $this->calculator->productionPerMinute($structureType->fresh(), 1),
         ]);
 
         return redirect()

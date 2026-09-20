@@ -32,9 +32,13 @@ class StructureLevelCalculator
     }
 
     /**
-     * Production per hour at a given level (producers only).
+     * Production per minute at a given level (producers only).
+     *
+     * Note: the stored column is historically named `production_per_hour`, but
+     * production now accrues per minute. The column simply holds the per-minute
+     * amount.
      */
-    public function productionPerHour(StructureType $type, int $level): int
+    public function productionPerMinute(StructureType $type, int $level): int
     {
         $level = $this->clampLevel($type, $level);
 
@@ -104,6 +108,42 @@ class StructureLevelCalculator
     }
 
     /**
+     * Total resources invested to bring a structure to $level, i.e. the sum of
+     * every upgrade cost paid from level 1 up to $level. A level-1 structure
+     * has invested nothing (placing is free).
+     *
+     * @return array{gold:int, metal:int, energy:int}
+     */
+    public function totalInvested(StructureType $type, int $level): array
+    {
+        $total = ['gold' => 0, 'metal' => 0, 'energy' => 0];
+
+        // upgradeCost($type, $k) is the cost to go from level $k to $k + 1.
+        for ($k = 1; $k < $level; $k++) {
+            $cost = $this->upgradeCost($type, $k);
+            if ($cost === null) {
+                continue;
+            }
+            $total['gold'] += $cost['gold'];
+            $total['metal'] += $cost['metal'];
+            $total['energy'] += $cost['energy'];
+        }
+
+        return $total;
+    }
+
+    /**
+     * Number of extra construction slots this structure grants at a given
+     * level (command structures only).
+     */
+    public function structureSlots(StructureType $type, int $level): int
+    {
+        $level = $this->clampLevel($type, $level);
+
+        return $this->geometric($type->structure_slots_base, (float) $type->structure_slots_growth, $level);
+    }
+
+    /**
      * Time (in seconds) to upgrade FROM $level TO $level + 1.
      * Returns null when already at max level.
      */
@@ -124,12 +164,24 @@ class StructureLevelCalculator
     }
 
     /**
-     * value(level) = round(base * growth^(level - 1))
+     * Scaled value for a given level.
+     *
+     * - growth >= 1: geometric growth  -> round(base * growth^(level - 1))
+     * - growth == 0: linear growth     -> base * level
+     *   (i.e. +base per level: level 1 = base, level 2 = 2*base, ...)
+     *
+     * The linear mode (growth = 0) is a convenient way to get round,
+     * predictable "+N per level" progressions without a schema change.
      */
     protected function geometric(int $base, float $growth, int $level): int
     {
         if ($base <= 0) {
             return 0;
+        }
+
+        // Linear mode: growth of exactly 0 means "+base per level".
+        if ($growth == 0.0) {
+            return $base * $level;
         }
 
         return (int) round($base * ($growth ** ($level - 1)));

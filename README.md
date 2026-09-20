@@ -57,11 +57,15 @@ Autenticados (header `Authorization: Bearer <token>`):
 - **Structure**: instância posicionada em `(x, y)`. Não pode sair dos limites nem
   sobrepor outra estrutura (validação AABB no backend).
 
-### Produção por hora
-A produção é calculada de forma "preguiçosa": ao coletar, o servidor conta quantas
-**horas inteiras** se passaram desde a última coleta e credita
-`horas * produção_por_hora`. As horas fracionárias ficam acumuladas para a próxima
-coleta. Isso não depende de cron/worker sempre ativo.
+### Produção por minuto
+A produção é calculada de forma "preguiçosa": ao coletar, o servidor conta quantos
+**minutos inteiros** se passaram desde a última coleta e credita
+`minutos * produção_por_minuto`. Os segundos fracionários ficam acumulados para a
+próxima coleta. Isso não depende de cron/worker sempre ativo.
+
+> Observação: por motivos históricos, a coluna que guarda esse valor ainda se
+> chama `production_per_hour` no banco, mas hoje ela representa a produção por
+> minuto.
 
 ## Ferramentas úteis
 

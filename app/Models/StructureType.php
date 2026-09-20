@@ -33,6 +33,9 @@ class StructureType extends Model
         'build_time',
         'upgrade_time_base',
         'upgrade_time_growth',
+        'is_unique',
+        'structure_slots_base',
+        'structure_slots_growth',
     ];
 
     protected $casts = [
@@ -55,6 +58,9 @@ class StructureType extends Model
         'build_time' => 'integer',
         'upgrade_time_base' => 'integer',
         'upgrade_time_growth' => 'float',
+        'is_unique' => 'boolean',
+        'structure_slots_base' => 'integer',
+        'structure_slots_growth' => 'float',
     ];
 
     public function structures(): HasMany
@@ -75,5 +81,10 @@ class StructureType extends Model
     public function isProducer(): bool
     {
         return $this->category === 'producer';
+    }
+
+    public function isCommand(): bool
+    {
+        return $this->category === 'command';
     }
 }

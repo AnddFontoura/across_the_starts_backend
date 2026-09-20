@@ -26,15 +26,58 @@ class StructureController extends Controller
         ]);
 
         $base = Base::firstOrCreate(['user_id' => $request->user()->id]);
+        $base->load('structures.type.levelConfigs');
         $type = StructureType::findOrFail($data['structure_type_id']);
 
-        // Enforce the global max number of structures per base (in-progress
-        // builds count toward the limit).
-        $maxStructures = (int) GameSetting::get('max_structures_per_base', 20);
-        if ($base->structures()->count() >= $maxStructures) {
+        // Unique structures (e.g. Command Center) may only exist once per base.
+        if ($type->is_unique && $base->structures->contains(fn ($s) => $s->structure_type_id === $type->id)) {
+            throw ValidationException::withMessages([
+                'unique' => ["Você só pode ter um(a) {$type->name}."],
+            ]);
+        }
+
+        // Per-category limits for command (1) and storage (1). Configurable via
+        // game settings. In-progress builds count toward the limit.
+        $categoryMax = $base->maxForCategory($type->category);
+        if ($categoryMax !== null && $base->countForCategory($type->category) >= $categoryMax) {
+            $categoryLabels = [
+                'command' => 'Centro de Operações',
+                'storage' => 'Depósito',
+            ];
+            $label = $categoryLabels[$type->category] ?? 'estruturas dessa categoria';
+
+            throw ValidationException::withMessages([
+                'category' => ["Limite atingido: você pode ter no máximo {$categoryMax} {$label}."],
+            ]);
+        }
+
+        // Producers are limited PER TYPE (e.g. up to 10 of each mine/generator),
+        // not across all producers combined.
+        $producerMax = $base->maxForProducerType($type->category);
+        if ($producerMax !== null && $base->countForType($type->id) >= $producerMax) {
+            throw ValidationException::withMessages([
+                'category' => ["Limite atingido: você pode ter no máximo {$producerMax} de {$type->name}."],
+            ]);
+        }
+
+        // Enforce the effective max number of structures per base (global limit
+        // plus Command Center slots). In-progress builds count toward it.
+        $maxStructures = $base->effectiveMaxStructures();
+        if ($base->structures->count() >= $maxStructures) {
             throw ValidationException::withMessages([
                 'limit' => ["Limite de construções atingido (máximo {$maxStructures})."],
             ]);
+        }
+
+        // Limit simultaneous builds/upgrades. A timed build occupies a slot;
+        // instant builds (build_time <= 0) don't.
+        if ((int) $type->build_time > 0) {
+            $maxBuilds = $base->maxConcurrentBuilds();
+            if ($base->busyStructuresCount() >= $maxBuilds) {
+                throw ValidationException::withMessages([
+                    'builds' => ["Você já tem {$maxBuilds} obras em andamento. Aguarde alguma terminar."],
+                ]);
+            }
         }
 
         if (! $base->fitsInBounds($data['x'], $data['y'], $type->width, $type->height)) {
@@ -128,6 +171,24 @@ class StructureController extends Controller
             ]);
         }
 
+        // Non-command structures cannot be upgraded beyond the Command Center's
+        // level. Without a (built) Command Center, they are capped at level 1.
+        if (! $structure->type->isCommand()) {
+            $commandLevel = $base->commandLevel();
+
+            if ($commandLevel <= 0) {
+                throw ValidationException::withMessages([
+                    'command' => ['Construa um Centro de Operações antes de evoluir esta estrutura.'],
+                ]);
+            }
+
+            if ($structure->level >= $commandLevel) {
+                throw ValidationException::withMessages([
+                    'command' => ["Nível limitado pelo Centro de Operações (nível {$commandLevel}). Evolua o Centro primeiro."],
+                ]);
+            }
+        }
+
         $cost = $structure->upgradeCost(); // ['gold' => .., 'metal' => .., 'energy' => ..]
 
         // Check the player can afford every required resource.
@@ -146,6 +207,16 @@ class StructureController extends Controller
         }
 
         $upgradeTime = (int) ($structure->upgradeTime() ?? 0);
+
+        // Limit simultaneous builds/upgrades. Only timed upgrades occupy a slot.
+        if ($upgradeTime > 0) {
+            $maxBuilds = $base->maxConcurrentBuilds();
+            if ($base->busyStructuresCount() >= $maxBuilds) {
+                throw ValidationException::withMessages([
+                    'builds' => ["Você já tem {$maxBuilds} obras em andamento. Aguarde alguma terminar."],
+                ]);
+            }
+        }
 
         DB::transaction(function () use ($structure, $base, $cost, $upgradeTime) {
             // Collect pending production first so the player doesn't lose it.
@@ -171,6 +242,35 @@ class StructureController extends Controller
 
         return response()->json([
             'message' => $upgradeTime > 0 ? 'Evolução iniciada.' : 'Estrutura evoluída.',
+            ...BaseController::serializeBase($base->fresh()),
+        ]);
+    }
+
+    /**
+     * Demolish a structure, refunding 50% of the resources invested in it
+     * (sum of all upgrade costs) directly to the player's stockpile.
+     */
+    public function demolish(Request $request, Structure $structure): JsonResponse
+    {
+        $base = $this->authorizeStructure($request, $structure);
+
+        $refund = $structure->demolitionRefund();
+
+        DB::transaction(function () use ($structure, $base, $refund) {
+            // Collect any pending production first so it isn't lost.
+            $this->collectStructure($structure, $base);
+
+            // Refund goes straight to the stockpile (not counted as collected).
+            foreach ($refund as $resource => $amount) {
+                $base->creditResourceRaw($resource, $amount);
+            }
+
+            $structure->delete();
+        });
+
+        return response()->json([
+            'message' => 'Estrutura desconstruída.',
+            'refund' => $refund,
             ...BaseController::serializeBase($base->fresh()),
         ]);
     }
@@ -205,6 +305,8 @@ class StructureController extends Controller
         }
 
         $structure->load('type.levelConfigs');
+        // Load sibling structures so command-level checks work.
+        $base->load('structures.type.levelConfigs');
 
         return $base;
     }

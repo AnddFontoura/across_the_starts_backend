@@ -36,10 +36,38 @@ class GameSettingSeeder extends Seeder
             ],
             [
                 'key' => 'max_structures_per_base',
-                'value' => '20',
+                'value' => '40',
                 'type' => 'int',
                 'label' => 'Máximo de construções por base',
                 'description' => 'Número máximo de estruturas que um jogador pode ter (inclui as em construção).',
+            ],
+            [
+                'key' => 'max_command_per_base',
+                'value' => '1',
+                'type' => 'int',
+                'label' => 'Máximo de Centros de Operações',
+                'description' => 'Quantidade máxima de estruturas de comando (Centro de Operações) por base.',
+            ],
+            [
+                'key' => 'max_storage_per_base',
+                'value' => '1',
+                'type' => 'int',
+                'label' => 'Máximo de Depósitos',
+                'description' => 'Quantidade máxima de estruturas de armazenamento (Depósito) por base.',
+            ],
+            [
+                'key' => 'max_producers_per_type',
+                'value' => '10',
+                'type' => 'int',
+                'label' => 'Máximo de cada construção de recurso',
+                'description' => 'Quantidade máxima de cada tipo de estrutura produtora (ex.: até 10 Minas de Ouro e até 10 Minas de Metal) por base.',
+            ],
+            [
+                'key' => 'max_concurrent_builds',
+                'value' => '5',
+                'type' => 'int',
+                'label' => 'Máximo de obras simultâneas',
+                'description' => 'Número máximo de estruturas que podem estar em construção ou evolução ao mesmo tempo.',
             ],
         ];
 

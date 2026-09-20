@@ -47,11 +47,11 @@ class Structure extends Model
     }
 
     /**
-     * Production per hour at the current level.
+     * Production per minute at the current level.
      */
-    public function productionPerHour(): int
+    public function productionPerMinute(): int
     {
-        return $this->calculator()->productionPerHour($this->type, $this->level);
+        return $this->calculator()->productionPerMinute($this->type, $this->level);
     }
 
     /**
@@ -74,6 +74,50 @@ class Structure extends Model
         }
 
         return $this->calculator()->protection($this->type, $this->level);
+    }
+
+    /**
+     * Total resources invested in this structure so far, per resource. Includes
+     * an in-progress upgrade (its cost was already debited when it started).
+     *
+     * @return array{gold:int, metal:int, energy:int}
+     */
+    public function totalInvested(): array
+    {
+        // If an upgrade is in progress, its cost is already spent, so count up
+        // to the pending level; otherwise up to the current level.
+        $effectiveLevel = $this->pending_level ?? $this->level;
+
+        return $this->calculator()->totalInvested($this->type, $effectiveLevel);
+    }
+
+    /**
+     * Resources refunded when demolishing (50% of the total invested).
+     *
+     * @return array{gold:int, metal:int, energy:int}
+     */
+    public function demolitionRefund(): array
+    {
+        $invested = $this->totalInvested();
+
+        return [
+            'gold' => intdiv($invested['gold'], 2),
+            'metal' => intdiv($invested['metal'], 2),
+            'energy' => intdiv($invested['energy'], 2),
+        ];
+    }
+
+    /**
+     * Construction slots this structure grants to the base (command only,
+     * and only once fully constructed).
+     */
+    public function structureSlots(): int
+    {
+        if (! $this->type->isCommand() || ! $this->is_constructed) {
+            return 0;
+        }
+
+        return $this->calculator()->structureSlots($this->type, $this->level);
     }
 
     /**
@@ -167,14 +211,14 @@ class Structure extends Model
     }
 
     /**
-     * Whole hours elapsed since the last collection.
+     * Whole minutes elapsed since the last collection.
      */
-    public function elapsedHours(?CarbonInterface $now = null): int
+    public function elapsedMinutes(?CarbonInterface $now = null): int
     {
         $now ??= now();
         $since = $this->last_collected_at ?? $this->created_at ?? $now;
 
-        return max(0, (int) floor($since->diffInHours($now)));
+        return max(0, (int) floor($since->diffInMinutes($now)));
     }
 
     /**
@@ -188,12 +232,12 @@ class Structure extends Model
             return 0;
         }
 
-        $hours = $this->elapsedHours($now);
-        if ($hours <= 0) {
+        $minutes = $this->elapsedMinutes($now);
+        if ($minutes <= 0) {
             return 0;
         }
 
-        $produced = $hours * $this->productionPerHour();
+        $produced = $minutes * $this->productionPerMinute();
 
         return min($produced, $this->maxCapacity());
     }

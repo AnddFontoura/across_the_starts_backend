@@ -38,7 +38,10 @@ class BaseController extends Controller
             $base->load('structures.type.levelConfigs');
         }
 
-        $maxStructures = (int) \App\Models\GameSetting::get('max_structures_per_base', 20);
+        $maxStructures = $base->effectiveMaxStructures();
+        $commandLevel = $base->commandLevel();
+        $busyCount = $base->busyStructuresCount();
+        $maxConcurrentBuilds = $base->maxConcurrentBuilds();
 
         $structures = $base->structures->map(fn ($s) => [
             'id' => $s->id,
@@ -47,11 +50,16 @@ class BaseController extends Controller
             'level' => $s->level,
             'max_level' => $s->type->max_level,
             'is_max_level' => $s->isMaxLevel(),
-            'production_per_hour' => $s->productionPerHour(),
+            // Non-command structures are capped at the Command Center's level.
+            'capped_by_command' => ! $s->type->isCommand()
+                && $s->level >= $commandLevel
+                && ! $s->isMaxLevel(),
+            'production_per_minute' => $s->productionPerMinute(),
             'max_capacity' => $s->maxCapacity(),
             'protection' => $s->protection(),
             'upgrade_cost' => $s->upgradeCost(), // {gold, metal, energy} | null
             'upgrade_time' => $s->upgradeTime(), // seconds | null
+            'demolition_refund' => $s->demolitionRefund(), // {gold, metal, energy}
             'last_collected_at' => optional($s->last_collected_at)->toIso8601String(),
             'pending' => $s->pendingProduction(),
             // Construction / upgrade state
@@ -85,7 +93,33 @@ class BaseController extends Controller
             'max_level' => $t->max_level,
             'color' => $t->color,
             'build_time' => $t->build_time,
+            'is_unique' => $t->is_unique,
         ])->values();
+
+        // Type ids already placed on the base (for disabling unique types in UI).
+        $existingTypeIds = $base->structures->pluck('structure_type_id')->unique()->values();
+
+        // Per-category usage vs. limit for command/storage (for disabling full
+        // categories in the UI).
+        $categoryLimits = [];
+        foreach (['command', 'storage'] as $category) {
+            $categoryLimits[$category] = [
+                'used' => $base->countForCategory($category),
+                'max' => $base->maxForCategory($category),
+            ];
+        }
+
+        // Producers are limited per type: expose used/max keyed by type id so
+        // the UI can disable an individual producer once its own limit is hit.
+        $typeLimits = [];
+        foreach ($types as $t) {
+            if ($t['category'] === 'producer') {
+                $typeLimits[$t['id']] = [
+                    'used' => $base->countForType($t['id']),
+                    'max' => $base->maxForProducerType('producer'),
+                ];
+            }
+        }
 
         return [
             'base' => [
@@ -105,6 +139,12 @@ class BaseController extends Controller
                 'protection' => $base->totalProtection(),
                 'structures_used' => $base->structures->count(),
                 'max_structures' => $maxStructures,
+                'command_level' => $commandLevel,
+                'existing_type_ids' => $existingTypeIds,
+                'category_limits' => $categoryLimits,
+                'type_limits' => $typeLimits,
+                'builds_in_progress' => $busyCount,
+                'max_concurrent_builds' => $maxConcurrentBuilds,
             ],
             'structures' => $structures,
             'structure_types' => $types,

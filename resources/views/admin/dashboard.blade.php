@@ -27,7 +27,7 @@
                             <span class="swatch" style="background: {{ $type->color }}"></span>
                             {{ $type->name }}
                         </td>
-                        <td>{{ $type->category === 'storage' ? 'Depósito' : 'Produtor' }}</td>
+                        <td>{{ ['producer' => 'Produtor', 'storage' => 'Depósito', 'command' => 'Comando'][$type->category] ?? $type->category }}</td>
                         <td>{{ $type->max_level }}</td>
                         <td>{{ $type->production_base }} (x{{ $type->production_growth }})</td>
                         <td>{{ $type->protection_base }} (x{{ $type->protection_growth }})</td>

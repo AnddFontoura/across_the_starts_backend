@@ -30,7 +30,7 @@
                 <div>
                     <label>Categoria</label>
                     <select name="category">
-                        @foreach (['producer' => 'Produtor', 'storage' => 'Depósito (armazena/protege)'] as $val => $lbl)
+                        @foreach (['producer' => 'Produtor', 'storage' => 'Depósito (armazena/protege)', 'command' => 'Centro de Operações (comando)'] as $val => $lbl)
                             <option value="{{ $val }}" @selected($type->category === $val)>{{ $lbl }}</option>
                         @endforeach
                     </select>
@@ -104,6 +104,25 @@
                 </div>
             </div>
 
+            <h3 style="margin:.5rem 0 0;">Comando (Centro de Operações)</h3>
+            <div class="grid grid-3">
+                <div>
+                    <label>Único por base?</label>
+                    <select name="is_unique">
+                        <option value="1" @selected($type->is_unique)>Sim</option>
+                        <option value="0" @selected(! $type->is_unique)>Não</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Slots de construção base (nível 1)</label>
+                    <input type="number" name="structure_slots_base" value="{{ old('structure_slots_base', $type->structure_slots_base) }}">
+                </div>
+                <div>
+                    <label>Crescimento dos slots (0 = linear)</label>
+                    <input type="number" step="0.001" name="structure_slots_growth" value="{{ old('structure_slots_growth', $type->structure_slots_growth) }}">
+                </div>
+            </div>
+
             <h3 style="margin:.5rem 0 0;">Custo de upgrade por recurso</h3>
             <div class="grid grid-2">
                 <div>
@@ -164,7 +183,7 @@
                 <input type="number" name="level" min="1" max="{{ $type->max_level }}" required>
             </div>
             <div>
-                <label>Produção/hora (opcional)</label>
+                <label>Produção/min (opcional)</label>
                 <input type="number" name="production_per_hour" min="0">
             </div>
             <div>
@@ -203,7 +222,7 @@
             <thead>
                 <tr>
                     <th>Nível</th>
-                    <th>Produção/h</th>
+                    <th>Produção/min</th>
                     <th>Capacidade</th>
                     <th>Proteção</th>
                     <th>Custo (O / M / E)</th>
