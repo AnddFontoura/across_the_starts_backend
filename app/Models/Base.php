@@ -10,6 +10,7 @@ class Base extends Model
 {
     protected $fillable = [
         'user_id',
+        'kind',
         'width',
         'height',
         'gold',
@@ -39,6 +40,39 @@ class Base extends Model
     public function structures(): HasMany
     {
         return $this->hasMany(Structure::class);
+    }
+
+    /**
+     * Whether this is the orbital defense base (vs. the terrestrial resource base).
+     */
+    public function isPlanetary(): bool
+    {
+        return $this->kind === 'planetary';
+    }
+
+    /**
+     * The "scope" of structure types this base can host.
+     */
+    public function scope(): string
+    {
+        return $this->isPlanetary() ? 'planetary' : 'terrestrial';
+    }
+
+    /**
+     * The base that holds the player's shared resource stockpile. Resources
+     * live on the terrestrial base; the planetary base spends from the same
+     * wallet. For the terrestrial base this is itself.
+     */
+    public function wallet(): Base
+    {
+        if (! $this->isPlanetary()) {
+            return $this;
+        }
+
+        return static::firstOrCreate([
+            'user_id' => $this->user_id,
+            'kind' => 'terrestrial',
+        ]);
     }
 
     /**
@@ -156,6 +190,70 @@ class Base extends Model
         $bonus = $this->structures->sum(fn ($s) => $s->structureSlots());
 
         return $baseLimit + $bonus;
+    }
+
+    /**
+     * The command level that governs quantity-based rules on the planetary
+     * base. The Defense Center may reach level 30, but for quantity rules it is
+     * treated as capped at 15 (configurable). Returns 0 when there is no built
+     * Defense Center.
+     */
+    public function quantityCommandLevel(): int
+    {
+        $level = $this->commandLevel();
+
+        if ($level <= 0) {
+            return 0;
+        }
+
+        $cap = (int) GameSetting::get('defense_center_quantity_cap', 15);
+
+        return min($level, $cap);
+    }
+
+    /**
+     * Maximum number of a given defense type allowed on the planetary base.
+     *
+     * - Blocks, artillery and plasma cannons: 3 per (capped) Defense Center level.
+     * - Cosmic Ray: 1 per 3 (capped) Defense Center levels.
+     *
+     * Returns 0 while there is no built Defense Center. Returns null for keys
+     * that aren't quantity-limited this way.
+     */
+    public function maxForDefenseKey(string $key): ?int
+    {
+        $level = $this->quantityCommandLevel();
+
+        $perLevel = [
+            'defense_block',
+            'artillery',
+            'plasma_cannon',
+        ];
+
+        if (in_array($key, $perLevel, true)) {
+            $per = (int) GameSetting::get('defense_units_per_center_level', 3);
+
+            return $level * $per;
+        }
+
+        if ($key === 'cosmic_ray') {
+            $every = (int) GameSetting::get('cosmic_ray_center_levels', 3);
+
+            return $every > 0 ? intdiv($level, $every) : 0;
+        }
+
+        return null;
+    }
+
+    /**
+     * How many structures of a specific type key currently exist on this base
+     * (including any still under construction).
+     */
+    public function countForTypeKey(string $key): int
+    {
+        return $this->structures
+            ->filter(fn ($s) => $s->type->key === $key)
+            ->count();
     }
 
     /**

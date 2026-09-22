@@ -25,9 +25,17 @@ class StructureController extends Controller
             'y' => ['required', 'integer', 'min:0'],
         ]);
 
-        $base = Base::firstOrCreate(['user_id' => $request->user()->id]);
+        $base = BaseController::resolveBase($request);
         $base->load('structures.type.levelConfigs');
         $type = StructureType::findOrFail($data['structure_type_id']);
+
+        // The structure type must belong to this base's scope (can't build a
+        // defense structure on the terrestrial base and vice versa).
+        if ($type->scope !== $base->scope()) {
+            throw ValidationException::withMessages([
+                'scope' => ['Essa estrutura não pode ser construída nesta base.'],
+            ]);
+        }
 
         // Unique structures (e.g. Command Center) may only exist once per base.
         if ($type->is_unique && $base->structures->contains(fn ($s) => $s->structure_type_id === $type->id)) {
@@ -58,6 +66,26 @@ class StructureController extends Controller
             throw ValidationException::withMessages([
                 'category' => ["Limite atingido: você pode ter no máximo {$producerMax} de {$type->name}."],
             ]);
+        }
+
+        // Planetary defenses are gated by the Defense Center level: 3 of each
+        // (block/artillery/plasma) per (capped) level, and 1 Cosmic Ray per 3
+        // levels. A max of 0 means "not unlocked yet" (no/low Defense Center).
+        if ($type->isDefense()) {
+            $defenseMax = $base->maxForDefenseKey($type->key);
+            if ($defenseMax !== null && $base->countForTypeKey($type->key) >= $defenseMax) {
+                if ($defenseMax === 0) {
+                    $message = $type->key === 'cosmic_ray'
+                        ? 'Eleve o Centro de Defesa (1 Raio Cósmico a cada 3 níveis) para liberar esta estrutura.'
+                        : 'Construa e evolua o Centro de Defesa para liberar defesas.';
+                } else {
+                    $message = "Limite atingido: você pode ter no máximo {$defenseMax} de {$type->name} para o nível atual do Centro de Defesa.";
+                }
+
+                throw ValidationException::withMessages([
+                    'category' => [$message],
+                ]);
+            }
         }
 
         // Enforce the effective max number of structures per base (global limit
@@ -135,7 +163,7 @@ class StructureController extends Controller
      */
     public function collectAll(Request $request): JsonResponse
     {
-        $base = Base::firstOrCreate(['user_id' => $request->user()->id]);
+        $base = BaseController::resolveBase($request);
         $base->load('structures.type.levelConfigs');
 
         DB::transaction(function () use ($base) {
@@ -191,11 +219,14 @@ class StructureController extends Controller
 
         $cost = $structure->upgradeCost(); // ['gold' => .., 'metal' => .., 'energy' => ..]
 
+        // Resources come from the shared player stockpile (terrestrial wallet).
+        $wallet = $base->wallet();
+
         // Check the player can afford every required resource.
         $labels = ['gold' => 'ouro', 'metal' => 'metal', 'energy' => 'energia'];
         $missing = [];
         foreach ($cost as $resource => $amount) {
-            if ($amount > 0 && $base->{$resource} < $amount) {
+            if ($amount > 0 && $wallet->{$resource} < $amount) {
                 $missing[] = "{$amount} de {$labels[$resource]}";
             }
         }
@@ -218,14 +249,14 @@ class StructureController extends Controller
             }
         }
 
-        DB::transaction(function () use ($structure, $base, $cost, $upgradeTime) {
+        DB::transaction(function () use ($structure, $base, $wallet, $cost, $upgradeTime) {
             // Collect pending production first so the player doesn't lose it.
             $this->collectStructure($structure, $base);
 
-            // Debit the cost immediately when the upgrade starts.
+            // Debit the cost immediately when the upgrade starts (shared wallet).
             foreach ($cost as $resource => $amount) {
                 if ($amount > 0) {
-                    $base->decrement($resource, $amount);
+                    $wallet->decrement($resource, $amount);
                 }
             }
 
@@ -256,13 +287,15 @@ class StructureController extends Controller
 
         $refund = $structure->demolitionRefund();
 
-        DB::transaction(function () use ($structure, $base, $refund) {
+        $wallet = $base->wallet();
+
+        DB::transaction(function () use ($structure, $base, $wallet, $refund) {
             // Collect any pending production first so it isn't lost.
             $this->collectStructure($structure, $base);
 
             // Refund goes straight to the stockpile (not counted as collected).
             foreach ($refund as $resource => $amount) {
-                $base->creditResourceRaw($resource, $amount);
+                $wallet->creditResourceRaw($resource, $amount);
             }
 
             $structure->delete();
@@ -287,7 +320,7 @@ class StructureController extends Controller
             return;
         }
 
-        $base->creditResource($structure->type->resource, $amount);
+        $base->wallet()->creditResource($structure->type->resource, $amount);
 
         $structure->last_collected_at = now();
         $structure->save();
@@ -298,9 +331,9 @@ class StructureController extends Controller
      */
     protected function authorizeStructure(Request $request, Structure $structure): Base
     {
-        $base = Base::firstOrCreate(['user_id' => $request->user()->id]);
+        $base = $structure->base;
 
-        if ($structure->base_id !== $base->id) {
+        if ($base === null || $base->user_id !== $request->user()->id) {
             abort(403, 'Essa estrutura não pertence a você.');
         }
 

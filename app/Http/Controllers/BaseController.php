@@ -15,9 +15,24 @@ class BaseController extends Controller
      */
     public function show(Request $request): JsonResponse
     {
-        $base = Base::firstOrCreate(['user_id' => $request->user()->id]);
+        $base = self::resolveBase($request);
 
         return response()->json($this->serializeBase($base));
+    }
+
+    /**
+     * Resolve (creating if needed) the authenticated player's base for the
+     * requested kind. Defaults to the terrestrial base.
+     */
+    public static function resolveBase(Request $request): Base
+    {
+        $kind = $request->input('kind', $request->query('kind', 'terrestrial'));
+        $kind = in_array($kind, ['terrestrial', 'planetary'], true) ? $kind : 'terrestrial';
+
+        return Base::firstOrCreate([
+            'user_id' => $request->user()->id,
+            'kind' => $kind,
+        ]);
     }
 
     /**
@@ -57,6 +72,10 @@ class BaseController extends Controller
             'production_per_minute' => $s->productionPerMinute(),
             'max_capacity' => $s->maxCapacity(),
             'protection' => $s->protection(),
+            // Combat stats (0 for structures without HP/damage, e.g. terrestrial).
+            'max_hp' => $s->maxHp(),
+            'current_hp' => $s->currentHp(),
+            'damage' => $s->damage(),
             'upgrade_cost' => $s->upgradeCost(), // {gold, metal, energy} | null
             'upgrade_time' => $s->upgradeTime(), // seconds | null
             'demolition_refund' => $s->demolitionRefund(), // {gold, metal, energy}
@@ -78,15 +97,20 @@ class BaseController extends Controller
                 'height' => $s->type->height,
                 'resource' => $s->type->resource,
                 'color' => $s->type->color,
+                'scope' => $s->type->scope,
             ],
         ])->values();
 
-        $types = StructureType::orderBy('id')->get()->map(fn ($t) => [
+        // Catalog is filtered to the base's scope so the planetary base only
+        // lists defense structures and the terrestrial base only lists economy.
+        $scope = $base->scope();
+        $types = StructureType::where('scope', $scope)->orderBy('id')->get()->map(fn ($t) => [
             'id' => $t->id,
             'key' => $t->key,
             'name' => $t->name,
             'description' => $t->description,
             'category' => $t->category,
+            'scope' => $t->scope,
             'width' => $t->width,
             'height' => $t->height,
             'resource' => $t->resource,
@@ -109,8 +133,11 @@ class BaseController extends Controller
             ];
         }
 
-        // Producers are limited per type: expose used/max keyed by type id so
-        // the UI can disable an individual producer once its own limit is hit.
+        // Per-type limits keyed by type id so the UI can disable an individual
+        // type once its own limit is hit:
+        //  - terrestrial producers: up to N of each.
+        //  - planetary defenses: 3 per Defense Center level (1 per 3 levels for
+        //    the Cosmic Ray).
         $typeLimits = [];
         foreach ($types as $t) {
             if ($t['category'] === 'producer') {
@@ -118,28 +145,41 @@ class BaseController extends Controller
                     'used' => $base->countForType($t['id']),
                     'max' => $base->maxForProducerType('producer'),
                 ];
+            } elseif ($t['category'] === 'defense') {
+                $typeLimits[$t['id']] = [
+                    'used' => $base->countForTypeKey($t['key']),
+                    'max' => $base->maxForDefenseKey($t['key']),
+                ];
             }
         }
+
+        // Resources are a single shared player stockpile, kept on the
+        // terrestrial base. The planetary base spends from and reports it too.
+        $wallet = $base->wallet();
 
         return [
             'base' => [
                 'id' => $base->id,
+                'kind' => $base->kind,
+                'scope' => $scope,
                 'width' => $base->width,
                 'height' => $base->height,
                 'resources' => [
-                    'gold' => $base->gold,
-                    'metal' => $base->metal,
-                    'energy' => $base->energy,
+                    'gold' => $wallet->gold,
+                    'metal' => $wallet->metal,
+                    'energy' => $wallet->energy,
                 ],
                 'total_collected' => [
-                    'gold' => $base->total_gold_collected,
-                    'metal' => $base->total_metal_collected,
-                    'energy' => $base->total_energy_collected,
+                    'gold' => $wallet->total_gold_collected,
+                    'metal' => $wallet->total_metal_collected,
+                    'energy' => $wallet->total_energy_collected,
                 ],
                 'protection' => $base->totalProtection(),
                 'structures_used' => $base->structures->count(),
                 'max_structures' => $maxStructures,
                 'command_level' => $commandLevel,
+                // Defense Center level considered for quantity rules (<= 15).
+                'quantity_command_level' => $base->quantityCommandLevel(),
                 'existing_type_ids' => $existingTypeIds,
                 'category_limits' => $categoryLimits,
                 'type_limits' => $typeLimits,

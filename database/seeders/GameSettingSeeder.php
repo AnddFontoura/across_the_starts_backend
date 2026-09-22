@@ -69,6 +69,29 @@ class GameSettingSeeder extends Seeder
                 'label' => 'Máximo de obras simultâneas',
                 'description' => 'Número máximo de estruturas que podem estar em construção ou evolução ao mesmo tempo.',
             ],
+
+            // --- Planetary (orbital) defense base ---
+            [
+                'key' => 'defense_center_quantity_cap',
+                'value' => '15',
+                'type' => 'int',
+                'label' => 'Teto de nível do Centro de Defesa para quantidade',
+                'description' => 'O Centro de Defesa pode chegar ao nível 30, mas para as regras de quantidade de defesas ele é considerado até este nível.',
+            ],
+            [
+                'key' => 'defense_units_per_center_level',
+                'value' => '3',
+                'type' => 'int',
+                'label' => 'Defesas por nível do Centro de Defesa',
+                'description' => 'Quantidade de blocos de defesa, artilharias e canhões de plasma liberados por nível (considerado) do Centro de Defesa.',
+            ],
+            [
+                'key' => 'cosmic_ray_center_levels',
+                'value' => '3',
+                'type' => 'int',
+                'label' => 'Níveis do Centro por Raio Cósmico',
+                'description' => 'A cada quantos níveis (considerados) do Centro de Defesa um Raio Cósmico é liberado.',
+            ],
         ];
 
         foreach ($settings as $setting) {

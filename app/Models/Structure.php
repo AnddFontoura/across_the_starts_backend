@@ -19,6 +19,7 @@ class Structure extends Model
         'is_constructed',
         'busy_until',
         'pending_level',
+        'current_hp',
     ];
 
     protected $casts = [
@@ -29,6 +30,7 @@ class Structure extends Model
         'is_constructed' => 'boolean',
         'busy_until' => 'datetime',
         'pending_level' => 'integer',
+        'current_hp' => 'integer',
     ];
 
     public function base(): BelongsTo
@@ -74,6 +76,41 @@ class Structure extends Model
         }
 
         return $this->calculator()->protection($this->type, $this->level);
+    }
+
+    /**
+     * Maximum hit points at the current level (0 for types without HP).
+     */
+    public function maxHp(): int
+    {
+        return $this->calculator()->hp($this->type, $this->level);
+    }
+
+    /**
+     * Current hit points. Defaults to the level's max HP when unset ("full").
+     */
+    public function currentHp(): int
+    {
+        $max = $this->maxHp();
+
+        if ($this->current_hp === null) {
+            return $max;
+        }
+
+        return min((int) $this->current_hp, $max);
+    }
+
+    /**
+     * Damage dealt per shot at the current level (defense structures only,
+     * once fully constructed).
+     */
+    public function damage(): int
+    {
+        if (! $this->type->isDefense() || ! $this->is_constructed) {
+            return 0;
+        }
+
+        return $this->calculator()->damage($this->type, $this->level);
     }
 
     /**

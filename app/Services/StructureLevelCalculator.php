@@ -81,6 +81,27 @@ class StructureLevelCalculator
     }
 
     /**
+     * Maximum hit points at a given level. All planetary structures have HP
+     * that grows with level.
+     */
+    public function hp(StructureType $type, int $level): int
+    {
+        $level = $this->clampLevel($type, $level);
+
+        return $this->geometric($type->hp_base, (float) $type->hp_growth, $level);
+    }
+
+    /**
+     * Damage dealt per shot at a given level (defense structures only).
+     */
+    public function damage(StructureType $type, int $level): int
+    {
+        $level = $this->clampLevel($type, $level);
+
+        return $this->geometric($type->damage_base, (float) $type->damage_growth, $level);
+    }
+
+    /**
      * Cost (per resource) to upgrade FROM $level TO $level + 1.
      * Returns null when already at max level, otherwise an array with keys
      * gold, metal, energy.

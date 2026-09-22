@@ -15,6 +15,7 @@ class StructureType extends Model
         'height',
         'resource',
         'category',
+        'scope',
         'production_per_hour',
         'color',
         'max_level',
@@ -24,6 +25,10 @@ class StructureType extends Model
         'capacity_growth',
         'protection_base',
         'protection_growth',
+        'hp_base',
+        'hp_growth',
+        'damage_base',
+        'damage_growth',
         'upgrade_cost_gold_base',
         'upgrade_cost_gold_growth',
         'upgrade_cost_metal_base',
@@ -49,6 +54,10 @@ class StructureType extends Model
         'capacity_growth' => 'float',
         'protection_base' => 'integer',
         'protection_growth' => 'float',
+        'hp_base' => 'integer',
+        'hp_growth' => 'float',
+        'damage_base' => 'integer',
+        'damage_growth' => 'float',
         'upgrade_cost_gold_base' => 'integer',
         'upgrade_cost_gold_growth' => 'float',
         'upgrade_cost_metal_base' => 'integer',
@@ -86,5 +95,23 @@ class StructureType extends Model
     public function isCommand(): bool
     {
         return $this->category === 'command';
+    }
+
+    /**
+     * A defense structure (planetary): deals damage to invaders and has HP.
+     */
+    public function isDefense(): bool
+    {
+        return $this->category === 'defense';
+    }
+
+    public function isTerrestrial(): bool
+    {
+        return $this->scope !== 'planetary';
+    }
+
+    public function isPlanetary(): bool
+    {
+        return $this->scope === 'planetary';
     }
 }
