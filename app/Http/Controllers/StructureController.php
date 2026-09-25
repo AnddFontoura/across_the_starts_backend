@@ -278,6 +278,61 @@ class StructureController extends Controller
     }
 
     /**
+     * Move a structure to a new (x, y) position on the base. The footprint
+     * must stay within bounds and must not overlap any OTHER structure
+     * (the structure being moved is excluded from the overlap test).
+     */
+    public function move(Request $request, Structure $structure): JsonResponse
+    {
+        $base = $this->authorizeStructure($request, $structure);
+
+        $data = $request->validate([
+            'x' => ['required', 'integer', 'min:0'],
+            'y' => ['required', 'integer', 'min:0'],
+        ]);
+
+        // Can't relocate a structure while it's building or upgrading.
+        if ($structure->isBusy()) {
+            throw ValidationException::withMessages([
+                'busy' => ['Esta estrutura está em obras. Aguarde a conclusão para movê-la.'],
+            ]);
+        }
+
+        $width = $structure->type->width;
+        $height = $structure->type->height;
+
+        if (! $base->fitsInBounds($data['x'], $data['y'], $width, $height)) {
+            throw ValidationException::withMessages([
+                'position' => ['A estrutura não cabe dentro dos limites do terreno.'],
+            ]);
+        }
+
+        // Exclude the structure being moved so it doesn't collide with itself.
+        if ($base->hasOverlap($data['x'], $data['y'], $width, $height, $structure->id)) {
+            throw ValidationException::withMessages([
+                'position' => ['Já existe uma estrutura nessa posição. Escolha outro local.'],
+            ]);
+        }
+
+        // No-op move: nothing to change.
+        if ($structure->x === $data['x'] && $structure->y === $data['y']) {
+            return response()->json([
+                'message' => 'A estrutura já está nessa posição.',
+                ...BaseController::serializeBase($base->fresh()),
+            ]);
+        }
+
+        $structure->x = $data['x'];
+        $structure->y = $data['y'];
+        $structure->save();
+
+        return response()->json([
+            'message' => 'Estrutura movida.',
+            ...BaseController::serializeBase($base->fresh()),
+        ]);
+    }
+
+    /**
      * Demolish a structure, refunding 50% of the resources invested in it
      * (sum of all upgrade costs) directly to the player's stockpile.
      */
@@ -315,14 +370,20 @@ class StructureController extends Controller
      */
     protected function collectStructure(Structure $structure, Base $base): void
     {
-        $amount = $structure->pendingProduction();
+        $now = now();
+        $amount = $structure->pendingProduction($now);
         if ($amount <= 0) {
             return;
         }
 
         $base->wallet()->creditResource($structure->type->resource, $amount);
 
-        $structure->last_collected_at = now();
+        // Advance the timer only by the seconds actually paid out, so any
+        // fraction of a second that didn't yield a whole unit is preserved for
+        // the next collection instead of being discarded.
+        $consumedSeconds = $structure->consumedSecondsFor($amount);
+        $since = $structure->last_collected_at ?? $structure->created_at ?? $now;
+        $structure->last_collected_at = $since->copy()->addSeconds($consumedSeconds);
         $structure->save();
     }
 

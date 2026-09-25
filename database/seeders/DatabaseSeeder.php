@@ -13,6 +13,9 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             StructureTypeSeeder::class,
+            AircraftTypeSeeder::class,
+            ModuleTypeSeeder::class,
+            CommanderSeeder::class,
             GameSettingSeeder::class,
             AdminUserSeeder::class,
         ]);

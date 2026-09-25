@@ -17,6 +17,9 @@ class StructureLevelConfig extends Model
         'upgrade_cost_metal',
         'upgrade_cost_energy',
         'upgrade_time',
+        'hp',
+        'damage',
+        'range',
     ];
 
     protected $casts = [
@@ -28,6 +31,9 @@ class StructureLevelConfig extends Model
         'upgrade_cost_metal' => 'integer',
         'upgrade_cost_energy' => 'integer',
         'upgrade_time' => 'integer',
+        'hp' => 'integer',
+        'damage' => 'integer',
+        'range' => 'integer',
     ];
 
     public function type(): BelongsTo

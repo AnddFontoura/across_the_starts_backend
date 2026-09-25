@@ -88,6 +88,11 @@ class StructureLevelCalculator
     {
         $level = $this->clampLevel($type, $level);
 
+        $override = $this->override($type, $level)?->hp;
+        if ($override !== null) {
+            return (int) $override;
+        }
+
         return $this->geometric($type->hp_base, (float) $type->hp_growth, $level);
     }
 
@@ -98,7 +103,98 @@ class StructureLevelCalculator
     {
         $level = $this->clampLevel($type, $level);
 
+        $override = $this->override($type, $level)?->damage;
+        if ($override !== null) {
+            return (int) $override;
+        }
+
         return $this->geometric($type->damage_base, (float) $type->damage_growth, $level);
+    }
+
+    /**
+     * Attack range at a given level, measured in cells (1 cell = 10x10 units).
+     * Defense structures only; used to decide which invaders are reachable
+     * based on the structure's position on the map.
+     */
+    public function range(StructureType $type, int $level): int
+    {
+        $level = $this->clampLevel($type, $level);
+
+        $override = $this->override($type, $level)?->range;
+        if ($override !== null) {
+            return (int) $override;
+        }
+
+        return $this->geometric($type->range_base, (float) $type->range_growth, $level);
+    }
+
+    /**
+     * Percentage reduction to aircraft build time at a given level (support
+     * structures such as the Aircraft Hangar). Clamped to a sane ceiling so it
+     * can never fully zero-out build time.
+     */
+    public function buildTimeReduction(StructureType $type, int $level): int
+    {
+        $level = $this->clampLevel($type, $level);
+
+        $value = $this->geometric(
+            $type->build_time_reduction_base,
+            (float) $type->build_time_reduction_growth,
+            $level
+        );
+
+        return max(0, min(90, $value));
+    }
+
+    /**
+     * Number of parallel aircraft build queues (slots) granted at a given
+     * level (support structures such as the Aircraft Hangar).
+     */
+    public function buildSlots(StructureType $type, int $level): int
+    {
+        $level = $this->clampLevel($type, $level);
+
+        // Admin-configurable level tiers take precedence over the formula.
+        // Shape: [{"upTo": 8, "slots": 1}, {"upTo": 16, "slots": 2}, ...].
+        $tiers = $type->build_slots_tiers;
+        if (is_array($tiers) && $tiers !== []) {
+            return $this->slotsFromTiers($tiers, $level);
+        }
+
+        return $this->geometric($type->build_slots_base, (float) $type->build_slots_growth, $level);
+    }
+
+    /**
+     * Resolve the number of slots for a level from a tier table. Tiers are
+     * "up to and including" breakpoints; the first tier whose `upTo` is >= the
+     * level wins. If the level exceeds every breakpoint, the last tier is used.
+     */
+    protected function slotsFromTiers(array $tiers, int $level): int
+    {
+        // Sort ascending by upTo so the first match is the tightest bound.
+        usort($tiers, fn ($a, $b) => ($a['upTo'] ?? PHP_INT_MAX) <=> ($b['upTo'] ?? PHP_INT_MAX));
+
+        $slots = 0;
+        foreach ($tiers as $tier) {
+            $slots = (int) ($tier['slots'] ?? $slots);
+            if ($level <= (int) ($tier['upTo'] ?? PHP_INT_MAX)) {
+                return $slots;
+            }
+        }
+
+        // Above all breakpoints: use the highest tier's slots.
+        return $slots;
+    }
+
+    /**
+     * Fleet storage capacity (how many aircraft the account can hold) granted
+     * at a given level (support structures such as the Aircraft Hangar).
+     */
+    public function fleetCapacity(StructureType $type, int $level): int
+    {
+        $level = $this->clampLevel($type, $level);
+
+        return $this->geometric($type->fleet_capacity_base, (float) $type->fleet_capacity_growth, $level);
     }
 
     /**

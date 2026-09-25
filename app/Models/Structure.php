@@ -114,6 +114,59 @@ class Structure extends Model
     }
 
     /**
+     * Attack range in cells at the current level (defense structures only,
+     * once fully constructed). 1 cell = 10x10 generic terrain units.
+     */
+    public function range(): int
+    {
+        if (! $this->type->isDefense() || ! $this->is_constructed) {
+            return 0;
+        }
+
+        return $this->calculator()->range($this->type, $this->level);
+    }
+
+    /**
+     * Aircraft build-time reduction (percent) at the current level. Only
+     * support structures (e.g. the Aircraft Hangar) provide it, and only once
+     * fully constructed.
+     */
+    public function buildTimeReduction(): int
+    {
+        if (! $this->type->isSupport() || ! $this->is_constructed) {
+            return 0;
+        }
+
+        return $this->calculator()->buildTimeReduction($this->type, $this->level);
+    }
+
+    /**
+     * Parallel aircraft build slots granted by this structure (support only,
+     * once constructed).
+     */
+    public function buildSlots(): int
+    {
+        if (! $this->type->isSupport() || ! $this->is_constructed) {
+            return 0;
+        }
+
+        return $this->calculator()->buildSlots($this->type, $this->level);
+    }
+
+    /**
+     * Fleet storage capacity granted by this structure (support only, once
+     * constructed).
+     */
+    public function fleetCapacity(): int
+    {
+        if (! $this->type->isSupport() || ! $this->is_constructed) {
+            return 0;
+        }
+
+        return $this->calculator()->fleetCapacity($this->type, $this->level);
+    }
+
+    /**
      * Total resources invested in this structure so far, per resource. Includes
      * an in-progress upgrade (its cost was already debited when it started).
      *
@@ -249,18 +302,33 @@ class Structure extends Model
 
     /**
      * Whole minutes elapsed since the last collection.
+     *
+     * @deprecated Production now accrues per second. Kept for backward
+     * compatibility; prefer {@see elapsedSeconds()}.
      */
     public function elapsedMinutes(?CarbonInterface $now = null): int
+    {
+        return intdiv($this->elapsedSeconds($now), 60);
+    }
+
+    /**
+     * Whole seconds elapsed since the last collection.
+     */
+    public function elapsedSeconds(?CarbonInterface $now = null): int
     {
         $now ??= now();
         $since = $this->last_collected_at ?? $this->created_at ?? $now;
 
-        return max(0, (int) floor($since->diffInMinutes($now)));
+        return max(0, (int) floor($since->diffInSeconds($now)));
     }
 
     /**
      * Amount of resource accumulated since the last collection, capped at the
      * structure's maximum capacity for its current level.
+     *
+     * Production accrues per second: the stored rate is per minute, so each
+     * second yields (rate / 60) rounded down. This lets players collect new
+     * resources the very next second instead of waiting a full minute.
      */
     public function pendingProduction(?CarbonInterface $now = null): int
     {
@@ -269,13 +337,39 @@ class Structure extends Model
             return 0;
         }
 
-        $minutes = $this->elapsedMinutes($now);
-        if ($minutes <= 0) {
+        $seconds = $this->elapsedSeconds($now);
+        if ($seconds <= 0) {
             return 0;
         }
 
-        $produced = $minutes * $this->productionPerMinute();
+        $produced = (int) floor($seconds * $this->productionPerMinute() / 60);
 
         return min($produced, $this->maxCapacity());
+    }
+
+    /**
+     * How many elapsed seconds correspond to a given produced amount. Used to
+     * advance `last_collected_at` precisely so the sub-second remainder is not
+     * discarded. When production was capped by capacity ("storage full"), all
+     * elapsed seconds are consumed and the overflow is intentionally lost.
+     */
+    public function consumedSecondsFor(int $amount, ?CarbonInterface $now = null): int
+    {
+        $rate = $this->productionPerMinute();
+        if ($rate <= 0) {
+            return 0;
+        }
+
+        $elapsed = $this->elapsedSeconds($now);
+
+        // Capped at capacity: consume everything elapsed (overflow discarded).
+        if ($amount >= $this->maxCapacity()) {
+            return $elapsed;
+        }
+
+        // Seconds needed to produce exactly `amount` at this per-minute rate.
+        $needed = (int) ceil($amount * 60 / $rate);
+
+        return min($needed, $elapsed);
     }
 }

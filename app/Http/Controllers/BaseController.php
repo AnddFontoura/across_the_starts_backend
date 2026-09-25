@@ -10,6 +10,12 @@ use Illuminate\Http\Request;
 class BaseController extends Controller
 {
     /**
+     * Size of one grid cell in generic terrain units. A cell is 10x10 units;
+     * ranges (alcance) are measured in whole cells.
+     */
+    public const CELL_SIZE = 10;
+
+    /**
      * Return the player's base: dimensions, resource balances, placed
      * structures and the catalog of buildable structure types.
      */
@@ -76,6 +82,9 @@ class BaseController extends Controller
             'max_hp' => $s->maxHp(),
             'current_hp' => $s->currentHp(),
             'damage' => $s->damage(),
+            'range' => $s->range(), // attack range in cells (0 = none)
+            // Aircraft build-time reduction (%) — support structures only.
+            'build_time_reduction' => $s->buildTimeReduction(),
             'upgrade_cost' => $s->upgradeCost(), // {gold, metal, energy} | null
             'upgrade_time' => $s->upgradeTime(), // seconds | null
             'demolition_refund' => $s->demolitionRefund(), // {gold, metal, energy}
@@ -118,6 +127,10 @@ class BaseController extends Controller
             'color' => $t->color,
             'build_time' => $t->build_time,
             'is_unique' => $t->is_unique,
+            // Level-1 range in cells (for placement preview of defenses).
+            'range' => $t->category === 'defense' ? app(\App\Services\StructureLevelCalculator::class)->range($t, 1) : 0,
+            // Level-1 aircraft build-time reduction (%) for support structures.
+            'build_time_reduction' => $t->category === 'support' ? app(\App\Services\StructureLevelCalculator::class)->buildTimeReduction($t, 1) : 0,
         ])->values();
 
         // Type ids already placed on the base (for disabling unique types in UI).
@@ -164,6 +177,8 @@ class BaseController extends Controller
                 'scope' => $scope,
                 'width' => $base->width,
                 'height' => $base->height,
+                // Size of one grid cell in generic terrain units (10x10 = 1 cell).
+                'cell_size' => self::CELL_SIZE,
                 'resources' => [
                     'gold' => $wallet->gold,
                     'metal' => $wallet->metal,

@@ -172,6 +172,56 @@ class StructureTypeSeeder extends Seeder
                 'upgrade_time_base' => 180,
                 'upgrade_time_growth' => 1.400,
             ],
+            [
+                'key' => 'aircraft_hangar',
+                'name' => 'Hangar de Aeronaves',
+                'description' => 'Constrói e abriga aeronaves. Cada nível reduz o tempo de construção das aeronaves. Segue os mesmos requisitos das demais construções da base (limitado pelo nível do Centro de Operações).',
+                'category' => 'support',
+                'scope' => 'terrestrial',
+                // Large footprint requested: 50x80.
+                'width' => 50,
+                'height' => 80,
+                'resource' => 'metal', // nominal; support doesn't produce
+                'production_per_hour' => 0,
+                'color' => '#8e7cc3',
+                'max_level' => 30,
+                'production_base' => 0,
+                'production_growth' => 1.000,
+                'capacity_base' => 0,
+                'capacity_growth' => 1.000,
+                'protection_base' => 0,
+                'protection_growth' => 1.000,
+                // Reduces aircraft build time by +2% per level (linear, growth 0):
+                // level 1 = 2%, level 30 = 60%. Clamped at 90% by the calculator.
+                'build_time_reduction_base' => 2,
+                'build_time_reduction_growth' => 0,
+                // Fleet governance. Build slots use configurable level tiers
+                // (JSON): 1 slot up to L8, 2 up to L16, 3 up to L24, 5 at L30.
+                // The base/growth below is the fallback if tiers are cleared.
+                'build_slots_base' => 1,
+                'build_slots_growth' => 0,
+                'build_slots_tiers' => [
+                    ['upTo' => 8, 'slots' => 1],
+                    ['upTo' => 16, 'slots' => 2],
+                    ['upTo' => 24, 'slots' => 3],
+                    ['upTo' => 30, 'slots' => 5],
+                ],
+                // fleet capacity: +5 aircraft per level (level 1 = 5, level 30 = 150).
+                'fleet_capacity_base' => 5,
+                'fleet_capacity_growth' => 0,
+                // Only one Aircraft Hangar per base.
+                'is_unique' => true,
+                // Costs all three resources; heavier on metal/energy.
+                'upgrade_cost_gold_base' => 200,
+                'upgrade_cost_gold_growth' => 1.550,
+                'upgrade_cost_metal_base' => 400,
+                'upgrade_cost_metal_growth' => 1.550,
+                'upgrade_cost_energy_base' => 300,
+                'upgrade_cost_energy_growth' => 1.550,
+                'build_time' => 120,
+                'upgrade_time_base' => 200,
+                'upgrade_time_growth' => 1.400,
+            ],
 
             // ---------------------------------------------------------------
             // PLANETARY (orbital) defense base. These live on scope=planetary.
@@ -202,6 +252,8 @@ class StructureTypeSeeder extends Seeder
                 'hp_growth' => 1.200,
                 'damage_base' => 100,
                 'damage_growth' => 1.200,
+                'range_base' => 5,
+                'range_growth' => 1.050,
                 // Only one Defense Center per base.
                 'is_unique' => true,
                 // Grants +2 construction slots per level (linear).
@@ -239,6 +291,9 @@ class StructureTypeSeeder extends Seeder
                 'hp_growth' => 1.200,
                 'damage_base' => 120,
                 'damage_growth' => 1.200,
+                // Balanced reach (in cells). Grows slowly with level.
+                'range_base' => 4,
+                'range_growth' => 1.050,
                 'upgrade_cost_gold_base' => 120,
                 'upgrade_cost_gold_growth' => 1.500,
                 'upgrade_cost_metal_base' => 200,
@@ -272,6 +327,9 @@ class StructureTypeSeeder extends Seeder
                 'hp_growth' => 1.220,
                 'damage_base' => 20,
                 'damage_growth' => 1.150,
+                // Very short reach: it only hits what's right next to it.
+                'range_base' => 1,
+                'range_growth' => 1.000,
                 'upgrade_cost_gold_base' => 80,
                 'upgrade_cost_gold_growth' => 1.500,
                 'upgrade_cost_metal_base' => 260,
@@ -304,6 +362,9 @@ class StructureTypeSeeder extends Seeder
                 'hp_growth' => 1.200,
                 'damage_base' => 220,
                 'damage_growth' => 1.220,
+                // Medium reach for concentrated fire.
+                'range_base' => 3,
+                'range_growth' => 1.050,
                 'upgrade_cost_gold_base' => 100,
                 'upgrade_cost_gold_growth' => 1.500,
                 'upgrade_cost_metal_base' => 120,
@@ -337,6 +398,9 @@ class StructureTypeSeeder extends Seeder
                 'hp_growth' => 1.210,
                 'damage_base' => 500,
                 'damage_growth' => 1.250,
+                // Long reach: it's a devastating superweapon.
+                'range_base' => 6,
+                'range_growth' => 1.060,
                 'upgrade_cost_gold_base' => 300,
                 'upgrade_cost_gold_growth' => 1.600,
                 'upgrade_cost_metal_base' => 300,

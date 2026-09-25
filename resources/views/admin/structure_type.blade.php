@@ -30,16 +30,27 @@
                 <div>
                     <label>Categoria</label>
                     <select name="category">
-                        @foreach (['producer' => 'Produtor', 'storage' => 'Depósito (armazena/protege)', 'command' => 'Centro de Operações (comando)'] as $val => $lbl)
-                            <option value="{{ $val }}" @selected($type->category === $val)>{{ $lbl }}</option>
+                        @foreach (['producer' => 'Produtor', 'storage' => 'Depósito (armazena/protege)', 'command' => 'Centro de Operações (comando)', 'defense' => 'Defesa (planetária)', 'support' => 'Apoio (ex.: Hangar)'] as $val => $lbl)
+                            <option value="{{ $val }}" @selected(old('category', $type->category) === $val)>{{ $lbl }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div>
+                    <label>Escopo</label>
+                    <select name="scope">
+                        @foreach (['terrestrial' => 'Terrestre', 'planetary' => 'Planetário'] as $val => $lbl)
+                            <option value="{{ $val }}" @selected(old('scope', $type->scope) === $val)>{{ $lbl }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-3">
+                <div>
                     <label>Recurso produzido (produtores)</label>
                     <select name="resource">
                         @foreach (['gold' => 'Ouro', 'metal' => 'Metal', 'energy' => 'Energia'] as $val => $lbl)
-                            <option value="{{ $val }}" @selected($type->resource === $val)>{{ $lbl }}</option>
+                            <option value="{{ $val }}" @selected(old('resource', $type->resource) === $val)>{{ $lbl }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -102,6 +113,74 @@
                     <label>Crescimento proteção</label>
                     <input type="number" step="0.001" name="protection_growth" value="{{ old('protection_growth', $type->protection_growth) }}">
                 </div>
+            </div>
+
+            <h3 style="margin:.5rem 0 0;">Combate (estruturas planetárias)</h3>
+            <p class="muted">Crescimento 0 = linear (+base por nível); ≥ 1 = geométrico. Dano só se aplica a estruturas de defesa.</p>
+            <div class="grid grid-2">
+                <div>
+                    <label>HP base (nível 1)</label>
+                    <input type="number" name="hp_base" value="{{ old('hp_base', $type->hp_base) }}">
+                </div>
+                <div>
+                    <label>Crescimento HP</label>
+                    <input type="number" step="0.001" name="hp_growth" value="{{ old('hp_growth', $type->hp_growth) }}">
+                </div>
+                <div>
+                    <label>Dano base (nível 1)</label>
+                    <input type="number" name="damage_base" value="{{ old('damage_base', $type->damage_base) }}">
+                </div>
+                <div>
+                    <label>Crescimento dano</label>
+                    <input type="number" step="0.001" name="damage_growth" value="{{ old('damage_growth', $type->damage_growth) }}">
+                </div>
+                <div>
+                    <label>Alcance base em células (nível 1)</label>
+                    <input type="number" name="range_base" value="{{ old('range_base', $type->range_base) }}">
+                </div>
+                <div>
+                    <label>Crescimento alcance (0 = linear)</label>
+                    <input type="number" step="0.001" name="range_growth" value="{{ old('range_growth', $type->range_growth) }}">
+                </div>
+            </div>
+            <p class="muted">Alcance é medido em células: 1 célula = 10×10 unidades do terreno.</p>
+
+            <h3 style="margin:.5rem 0 0;">Apoio (Hangar de Aeronaves)</h3>
+            <p class="muted">Redução do tempo de construção de aeronaves (%). Crescimento 0 = linear (+base% por nível). Limitado a 90% pelo jogo.</p>
+            <div class="grid grid-2">
+                <div>
+                    <label>Redução base por nível (%)</label>
+                    <input type="number" name="build_time_reduction_base" value="{{ old('build_time_reduction_base', $type->build_time_reduction_base) }}">
+                </div>
+                <div>
+                    <label>Crescimento da redução (0 = linear)</label>
+                    <input type="number" step="0.001" name="build_time_reduction_growth" value="{{ old('build_time_reduction_growth', $type->build_time_reduction_growth) }}">
+                </div>
+            </div>
+
+            <div class="grid grid-2">
+                <div>
+                    <label>Capacidade de frota base (nível 1)</label>
+                    <input type="number" name="fleet_capacity_base" value="{{ old('fleet_capacity_base', $type->fleet_capacity_base) }}">
+                </div>
+                <div>
+                    <label>Crescimento da capacidade (0 = linear)</label>
+                    <input type="number" step="0.001" name="fleet_capacity_growth" value="{{ old('fleet_capacity_growth', $type->fleet_capacity_growth) }}">
+                </div>
+                <div>
+                    <label>Slots de construção base (fallback)</label>
+                    <input type="number" name="build_slots_base" value="{{ old('build_slots_base', $type->build_slots_base) }}">
+                </div>
+                <div>
+                    <label>Crescimento dos slots (fallback)</label>
+                    <input type="number" step="0.001" name="build_slots_growth" value="{{ old('build_slots_growth', $type->build_slots_growth) }}">
+                </div>
+            </div>
+
+            <div>
+                <label>Slots por faixa de nível (JSON)</label>
+                <textarea name="build_slots_tiers" rows="3" placeholder='[{"upTo":8,"slots":1},{"upTo":16,"slots":2},{"upTo":24,"slots":3},{"upTo":30,"slots":5}]'>{{ old('build_slots_tiers', $type->build_slots_tiers !== null ? json_encode($type->build_slots_tiers, JSON_UNESCAPED_UNICODE) : '') }}</textarea>
+                <small class="muted">Lista de faixas: cada nível até "upTo" (inclusive) concede "slots" filas. Tem prioridade sobre a fórmula. Vazio = usa a fórmula base/crescimento.</small>
             </div>
 
             <h3 style="margin:.5rem 0 0;">Comando (Centro de Operações)</h3>
@@ -210,6 +289,18 @@
                 <label>Tempo de upgrade em seg. (opcional)</label>
                 <input type="number" name="upgrade_time" min="0">
             </div>
+            <div>
+                <label>HP (opcional)</label>
+                <input type="number" name="hp" min="0">
+            </div>
+            <div>
+                <label>Dano (opcional)</label>
+                <input type="number" name="damage" min="0">
+            </div>
+            <div>
+                <label>Alcance em células (opcional)</label>
+                <input type="number" name="range" min="0">
+            </div>
             <div style="grid-column: 1 / -1;">
                 <button class="btn" type="submit">Salvar override</button>
             </div>
@@ -225,6 +316,10 @@
                     <th>Produção/min</th>
                     <th>Capacidade</th>
                     <th>Proteção</th>
+                    <th>HP</th>
+                    <th>Dano</th>
+                    <th>Alcance (cél.)</th>
+                    <th>Red. aeronave (%)</th>
                     <th>Custo (O / M / E)</th>
                     <th>Tempo upg (s)</th>
                     <th>Override?</th>
@@ -238,6 +333,10 @@
                         <td>{{ $row['production'] }}</td>
                         <td>{{ $row['capacity'] }}</td>
                         <td>{{ $row['protection'] }}</td>
+                        <td>{{ $row['hp'] }}</td>
+                        <td>{{ $row['damage'] }}</td>
+                        <td>{{ $row['range'] }}</td>
+                        <td>{{ $row['build_time_reduction'] }}</td>
                         <td>
                             @if ($row['upgrade_cost'])
                                 {{ $row['upgrade_cost']['gold'] }} / {{ $row['upgrade_cost']['metal'] }} / {{ $row['upgrade_cost']['energy'] }}

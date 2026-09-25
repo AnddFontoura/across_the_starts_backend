@@ -29,6 +29,15 @@ class StructureType extends Model
         'hp_growth',
         'damage_base',
         'damage_growth',
+        'range_base',
+        'range_growth',
+        'build_time_reduction_base',
+        'build_time_reduction_growth',
+        'build_slots_base',
+        'build_slots_growth',
+        'build_slots_tiers',
+        'fleet_capacity_base',
+        'fleet_capacity_growth',
         'upgrade_cost_gold_base',
         'upgrade_cost_gold_growth',
         'upgrade_cost_metal_base',
@@ -58,6 +67,15 @@ class StructureType extends Model
         'hp_growth' => 'float',
         'damage_base' => 'integer',
         'damage_growth' => 'float',
+        'range_base' => 'integer',
+        'range_growth' => 'float',
+        'build_time_reduction_base' => 'integer',
+        'build_time_reduction_growth' => 'float',
+        'build_slots_base' => 'integer',
+        'build_slots_growth' => 'float',
+        'build_slots_tiers' => 'array',
+        'fleet_capacity_base' => 'integer',
+        'fleet_capacity_growth' => 'float',
         'upgrade_cost_gold_base' => 'integer',
         'upgrade_cost_gold_growth' => 'float',
         'upgrade_cost_metal_base' => 'integer',
@@ -103,6 +121,15 @@ class StructureType extends Model
     public function isDefense(): bool
     {
         return $this->category === 'defense';
+    }
+
+    /**
+     * A support structure (e.g. the Aircraft Hangar): provides a passive bonus
+     * such as reducing aircraft build time. Doesn't produce, store or attack.
+     */
+    public function isSupport(): bool
+    {
+        return $this->category === 'support';
     }
 
     public function isTerrestrial(): bool

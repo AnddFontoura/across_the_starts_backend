@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\AircraftController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BaseController;
+use App\Http\Controllers\ShipDesignController;
 use App\Http\Controllers\StructureController;
 use Illuminate\Support\Facades\Route;
 
@@ -22,5 +24,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/structures/collect', [StructureController::class, 'collectAll']);
     Route::post('/structures/{structure}/collect', [StructureController::class, 'collect']);
     Route::post('/structures/{structure}/upgrade', [StructureController::class, 'upgrade']);
+    Route::patch('/structures/{structure}/move', [StructureController::class, 'move']);
     Route::delete('/structures/{structure}', [StructureController::class, 'demolish']);
+
+    // Aircraft / fleet (account-level)
+    Route::get('/aircraft', [AircraftController::class, 'index']);
+    Route::post('/aircraft/build', [AircraftController::class, 'build']);
+
+    // Ship designs (custom models built from modules)
+    Route::get('/ship-designs', [ShipDesignController::class, 'index']);
+    Route::post('/ship-designs', [ShipDesignController::class, 'store']);
+    Route::post('/ship-designs/preview', [ShipDesignController::class, 'preview']);
+    Route::put('/ship-designs/{shipDesign}', [ShipDesignController::class, 'update']);
+    Route::delete('/ship-designs/{shipDesign}', [ShipDesignController::class, 'destroy']);
 });

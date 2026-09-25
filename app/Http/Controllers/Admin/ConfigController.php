@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AircraftMatchup;
+use App\Models\AircraftType;
 use App\Models\GameSetting;
+use App\Models\ModuleType;
 use App\Models\StructureLevelConfig;
 use App\Models\StructureType;
 use App\Services\StructureLevelCalculator;
@@ -21,8 +24,297 @@ class ConfigController extends Controller
     {
         return view('admin.dashboard', [
             'structureTypes' => StructureType::orderBy('id')->get(),
+            'aircraftTypes' => AircraftType::orderBy('id')->get(),
+            'moduleTypes' => ModuleType::orderBy('id')->get(),
             'settings' => GameSetting::orderBy('key')->get(),
         ]);
+    }
+
+    /**
+     * Show the form to create a new module type.
+     */
+    public function createModuleType(): View
+    {
+        return view('admin.module_type', [
+            'module' => new ModuleType(['space' => 1, 'color' => '#8e7cc3']),
+            'creating' => true,
+        ]);
+    }
+
+    /**
+     * Store a new module type.
+     */
+    public function storeModuleType(Request $request): RedirectResponse
+    {
+        $data = $this->validateModuleType($request, null);
+        if ($data instanceof RedirectResponse) {
+            return $data;
+        }
+
+        $module = ModuleType::create($data);
+
+        return redirect()
+            ->route('admin.module-types.edit', $module)
+            ->with('status', 'Módulo criado.');
+    }
+
+    /**
+     * Delete a module type.
+     */
+    public function destroyModuleType(ModuleType $moduleType): RedirectResponse
+    {
+        $moduleType->delete();
+
+        return redirect()
+            ->route('admin.dashboard')
+            ->with('status', 'Módulo removido.');
+    }
+
+    /**
+     * Edit a module type.
+     */
+    public function editModuleType(ModuleType $moduleType): View
+    {
+        return view('admin.module_type', [
+            'module' => $moduleType,
+            'creating' => false,
+        ]);
+    }
+
+    /**
+     * Update a module type. Any attribute may be 0. attack_type is only
+     * meaningful when attack > 0; empty attack_type = not a weapon.
+     */
+    public function updateModuleType(Request $request, ModuleType $moduleType): RedirectResponse
+    {
+        $data = $this->validateModuleType($request, $moduleType);
+        if ($data instanceof RedirectResponse) {
+            return $data;
+        }
+
+        $moduleType->update($data);
+
+        return redirect()
+            ->route('admin.module-types.edit', $moduleType)
+            ->with('status', 'Módulo atualizado.');
+    }
+
+    /**
+     * Validate + normalize a module type payload (create or update).
+     *
+     * @return array|RedirectResponse
+     */
+    protected function validateModuleType(Request $request, ?ModuleType $existing)
+    {
+        $keyRule = ['required', 'string', 'max:255', 'regex:/^[a-z0-9_]+$/'];
+        $keyRule[] = $existing
+            ? 'unique:module_types,key,'.$existing->id
+            : 'unique:module_types,key';
+
+        $data = $request->validate([
+            'key' => $keyRule,
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'color' => ['required', 'string', 'max:20'],
+            'image_url' => ['nullable', 'string', 'max:2048'],
+            'movement' => ['required', 'integer', 'min:0'],
+            'attack' => ['required', 'integer', 'min:0'],
+            'hull' => ['required', 'integer', 'min:0'],
+            'shield' => ['required', 'integer', 'min:0'],
+            'space' => ['required', 'integer', 'min:1'],
+            'attack_type' => ['nullable', 'in:machinegun,laser,missile'],
+            'range' => ['required', 'integer', 'min:0'],
+            'build_time_add' => ['required', 'integer', 'min:0'],
+            'cost_gold' => ['required', 'integer', 'min:0'],
+            'cost_metal' => ['required', 'integer', 'min:0'],
+            'cost_energy' => ['required', 'integer', 'min:0'],
+            'special_attributes' => ['nullable', 'string'],
+        ]);
+
+        // Normalize: no attack => not a weapon.
+        if ((int) $data['attack'] <= 0) {
+            $data['attack_type'] = null;
+        }
+        $data['attack_type'] = $data['attack_type'] ?: null;
+
+        $raw = trim((string) ($data['special_attributes'] ?? ''));
+        if ($raw === '') {
+            $data['special_attributes'] = null;
+        } else {
+            $decoded = json_decode($raw, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return back()->withInput()->withErrors(['special_attributes' => 'JSON inválido em atributos especiais.']);
+            }
+            $data['special_attributes'] = $decoded;
+        }
+
+        return $data;
+    }
+
+    /**
+     * Show the form to create a new aircraft type.
+     */
+    public function createAircraftType(): View
+    {
+        return view('admin.aircraft_type', [
+            'type' => new AircraftType(['class' => 'cruiser', 'color' => '#8e7cc3']),
+            'creating' => true,
+        ]);
+    }
+
+    /**
+     * Store a new aircraft type.
+     */
+    public function storeAircraftType(Request $request): RedirectResponse
+    {
+        $data = $this->validateAircraftType($request, null);
+        if ($data instanceof RedirectResponse) {
+            return $data;
+        }
+
+        $type = AircraftType::create($data);
+
+        return redirect()
+            ->route('admin.aircraft-types.edit', $type)
+            ->with('status', 'Aeronave criada.');
+    }
+
+    /**
+     * Delete an aircraft type.
+     */
+    public function destroyAircraftType(AircraftType $aircraftType): RedirectResponse
+    {
+        $aircraftType->delete();
+
+        return redirect()
+            ->route('admin.dashboard')
+            ->with('status', 'Aeronave removida.');
+    }
+
+    /**
+     * Edit an aircraft type's stats.
+     */
+    public function editAircraftType(AircraftType $aircraftType): View
+    {
+        return view('admin.aircraft_type', [
+            'type' => $aircraftType,
+            'creating' => false,
+        ]);
+    }
+
+    /**
+     * Update an aircraft type's stats. Aircraft are flat (no levels) and have
+     * no innate damage — damage comes from modules. special_attributes is a
+     * free-form JSON object.
+     */
+    public function updateAircraftType(Request $request, AircraftType $aircraftType): RedirectResponse
+    {
+        $data = $this->validateAircraftType($request, $aircraftType);
+        if ($data instanceof RedirectResponse) {
+            return $data;
+        }
+
+        $aircraftType->update($data);
+
+        return redirect()
+            ->route('admin.aircraft-types.edit', $aircraftType)
+            ->with('status', 'Aeronave atualizada.');
+    }
+
+    /**
+     * Validate + normalize an aircraft type payload (create or update). Returns
+     * the data array, or a RedirectResponse when the special JSON is invalid.
+     *
+     * @return array|RedirectResponse
+     */
+    protected function validateAircraftType(Request $request, ?AircraftType $existing)
+    {
+        $keyRule = ['required', 'string', 'max:255', 'regex:/^[a-z0-9_]+$/'];
+        $keyRule[] = $existing
+            ? 'unique:aircraft_types,key,'.$existing->id
+            : 'unique:aircraft_types,key';
+
+        $data = $request->validate([
+            'key' => $keyRule,
+            'class' => ['required', 'in:'.implode(',', AircraftType::CLASSES)],
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'color' => ['required', 'string', 'max:20'],
+            'image_url' => ['nullable', 'string', 'max:2048'],
+            'storage' => ['required', 'integer', 'min:0'],
+            'cost_gold' => ['required', 'integer', 'min:0'],
+            'cost_metal' => ['required', 'integer', 'min:0'],
+            'cost_energy' => ['required', 'integer', 'min:0'],
+            'build_time' => ['required', 'integer', 'min:0'],
+            'shield' => ['required', 'integer', 'min:0'],
+            'hull' => ['required', 'integer', 'min:0'],
+            'movement' => ['required', 'integer', 'min:0'],
+            'special_attributes' => ['nullable', 'string'],
+        ]);
+
+        $special = null;
+        $raw = trim((string) ($data['special_attributes'] ?? ''));
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return back()->withInput()->withErrors(['special_attributes' => 'JSON inválido em atributos especiais.']);
+            }
+            $special = $decoded;
+        }
+        $data['special_attributes'] = $special;
+
+        return $data;
+    }
+
+    /**
+     * Show the counter matrix editor (bonus % and reduction % per ordered
+     * attacker -> defender pair).
+     */
+    public function editAircraftMatrix(): View
+    {
+        // Matrix is between the four classes (not individual ships).
+        $matchups = AircraftMatchup::all()
+            ->keyBy(fn (AircraftMatchup $m) => $m->attacker_class.':'.$m->defender_class);
+
+        return view('admin.aircraft_matrix', [
+            'classes' => AircraftType::CLASSES,
+            'labels' => AircraftType::CLASS_LABELS,
+            'matchups' => $matchups,
+        ]);
+    }
+
+    /**
+     * Save the whole counter matrix in one submit.
+     */
+    public function updateAircraftMatrix(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'bonus' => ['array'],
+            'bonus.*.*' => ['nullable', 'integer', 'min:-100', 'max:1000'],
+            'reduction' => ['array'],
+            'reduction.*.*' => ['nullable', 'integer', 'min:0', 'max:100'],
+        ]);
+
+        $bonus = $data['bonus'] ?? [];
+        $reduction = $data['reduction'] ?? [];
+
+        $classes = AircraftType::CLASSES;
+
+        foreach ($classes as $attacker) {
+            foreach ($classes as $defender) {
+                $b = (int) ($bonus[$attacker][$defender] ?? 0);
+                $r = (int) ($reduction[$attacker][$defender] ?? 0);
+
+                AircraftMatchup::updateOrCreate(
+                    ['attacker_class' => $attacker, 'defender_class' => $defender],
+                    ['damage_bonus_percent' => $b, 'damage_reduction_percent' => $r]
+                );
+            }
+        }
+
+        return redirect()
+            ->route('admin.aircraft-matrix.edit')
+            ->with('status', 'Matriz de contra-tipos atualizada.');
     }
 
     /**
@@ -40,6 +332,10 @@ class ConfigController extends Controller
                 'production' => $this->calculator->productionPerMinute($structureType, $level),
                 'capacity' => $this->calculator->maxCapacity($structureType, $level),
                 'protection' => $this->calculator->protection($structureType, $level),
+                'hp' => $this->calculator->hp($structureType, $level),
+                'damage' => $this->calculator->damage($structureType, $level),
+                'range' => $this->calculator->range($structureType, $level),
+                'build_time_reduction' => $this->calculator->buildTimeReduction($structureType, $level),
                 'upgrade_cost' => $this->calculator->upgradeCost($structureType, $level),
                 'upgrade_time' => $this->calculator->upgradeTime($structureType, $level),
                 'override' => $structureType->levelConfigs->firstWhere('level', $level),
@@ -60,7 +356,8 @@ class ConfigController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'category' => ['required', 'in:producer,storage,command'],
+            'category' => ['required', 'in:producer,storage,command,defense,support'],
+            'scope' => ['required', 'in:terrestrial,planetary'],
             'resource' => ['required', 'in:gold,metal,energy'],
             'color' => ['required', 'string', 'max:20'],
             'width' => ['required', 'integer', 'min:1'],
@@ -72,6 +369,24 @@ class ConfigController extends Controller
             'capacity_growth' => ['required', 'numeric', 'min:1', 'max:10'],
             'protection_base' => ['required', 'integer', 'min:0'],
             'protection_growth' => ['required', 'numeric', 'min:1', 'max:10'],
+            // Combat stats (planetary structures). growth uses the same
+            // convention as the others: 0 = linear (+base/level), >=1 geometric.
+            'hp_base' => ['required', 'integer', 'min:0'],
+            'hp_growth' => ['required', 'numeric', 'min:0', 'max:10'],
+            'damage_base' => ['required', 'integer', 'min:0'],
+            'damage_growth' => ['required', 'numeric', 'min:0', 'max:10'],
+            // Attack range in cells (1 cell = 10x10 units).
+            'range_base' => ['required', 'integer', 'min:0'],
+            'range_growth' => ['required', 'numeric', 'min:0', 'max:10'],
+            // Aircraft build-time reduction (%) — support structures.
+            'build_time_reduction_base' => ['required', 'integer', 'min:0', 'max:100'],
+            'build_time_reduction_growth' => ['required', 'numeric', 'min:0', 'max:10'],
+            // Fleet governance (support structures / Aircraft Hangar).
+            'build_slots_base' => ['required', 'integer', 'min:0'],
+            'build_slots_growth' => ['required', 'numeric', 'min:0', 'max:10'],
+            'build_slots_tiers' => ['nullable', 'string'],
+            'fleet_capacity_base' => ['required', 'integer', 'min:0'],
+            'fleet_capacity_growth' => ['required', 'numeric', 'min:0', 'max:10'],
             'upgrade_cost_gold_base' => ['required', 'integer', 'min:0'],
             'upgrade_cost_gold_growth' => ['required', 'numeric', 'min:1', 'max:10'],
             'upgrade_cost_metal_base' => ['required', 'integer', 'min:0'],
@@ -88,6 +403,35 @@ class ConfigController extends Controller
 
         // Unchecked checkbox doesn't submit; normalize to false.
         $data['is_unique'] = $request->boolean('is_unique');
+
+        // Parse the build-slots tier table (JSON). Empty clears it (falls back
+        // to the formula). Validate the shape: a list of {upTo, slots}.
+        $rawTiers = trim((string) ($data['build_slots_tiers'] ?? ''));
+        if ($rawTiers === '') {
+            $data['build_slots_tiers'] = null;
+        } else {
+            $decoded = json_decode($rawTiers, true);
+            $valid = is_array($decoded) && array_is_list($decoded);
+            if ($valid) {
+                foreach ($decoded as $tier) {
+                    if (! is_array($tier) || ! isset($tier['upTo'], $tier['slots'])
+                        || ! is_numeric($tier['upTo']) || ! is_numeric($tier['slots'])) {
+                        $valid = false;
+                        break;
+                    }
+                }
+            }
+            if (! $valid) {
+                return back()->withInput()->withErrors([
+                    'build_slots_tiers' => 'JSON inválido. Use uma lista como [{"upTo":8,"slots":1}, ...].',
+                ]);
+            }
+            // Normalize to ints.
+            $data['build_slots_tiers'] = array_map(fn ($t) => [
+                'upTo' => (int) $t['upTo'],
+                'slots' => (int) $t['slots'],
+            ], $decoded);
+        }
 
         $structureType->update($data);
         // Keep the display reference in sync with level 1 production (per minute).
@@ -114,6 +458,9 @@ class ConfigController extends Controller
             'upgrade_cost_metal' => ['nullable', 'integer', 'min:0'],
             'upgrade_cost_energy' => ['nullable', 'integer', 'min:0'],
             'upgrade_time' => ['nullable', 'integer', 'min:0'],
+            'hp' => ['nullable', 'integer', 'min:0'],
+            'damage' => ['nullable', 'integer', 'min:0'],
+            'range' => ['nullable', 'integer', 'min:0'],
         ]);
 
         StructureLevelConfig::updateOrCreate(
@@ -126,6 +473,9 @@ class ConfigController extends Controller
                 'upgrade_cost_metal' => $data['upgrade_cost_metal'] ?? null,
                 'upgrade_cost_energy' => $data['upgrade_cost_energy'] ?? null,
                 'upgrade_time' => $data['upgrade_time'] ?? null,
+                'hp' => $data['hp'] ?? null,
+                'damage' => $data['damage'] ?? null,
+                'range' => $data['range'] ?? null,
             ]
         );
 
