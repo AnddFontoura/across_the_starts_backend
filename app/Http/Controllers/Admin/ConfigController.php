@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AircraftMatchup;
 use App\Models\AircraftType;
+use App\Models\CommanderDefinition;
 use App\Models\GameSetting;
 use App\Models\ModuleType;
+use App\Models\RankingBonus;
 use App\Models\StructureLevelConfig;
 use App\Models\StructureType;
 use App\Services\StructureLevelCalculator;
@@ -26,8 +28,61 @@ class ConfigController extends Controller
             'structureTypes' => StructureType::orderBy('id')->get(),
             'aircraftTypes' => AircraftType::orderBy('id')->get(),
             'moduleTypes' => ModuleType::orderBy('id')->get(),
+            'commanderDefinitions' => CommanderDefinition::orderBy('id')->get(),
             'settings' => GameSetting::orderBy('key')->get(),
         ]);
+    }
+
+    /**
+     * Ranking-bonus editor: proficiency levels I-V and commander ranks I-X.
+     */
+    public function editRankingBonuses(): View
+    {
+        $bonuses = RankingBonus::all()->keyBy(fn (RankingBonus $b) => $b->scope.':'.$b->level);
+
+        return view('admin.ranking_bonuses', [
+            'bonuses' => $bonuses,
+            'proficiencyLevels' => range(1, 5),
+            'commanderLevels' => range(1, 10),
+            'roman' => \App\Models\Commander::ROMAN,
+        ]);
+    }
+
+    /**
+     * Save the whole ranking-bonus table.
+     */
+    public function updateRankingBonuses(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'attack' => ['array'],
+            'attack.*.*' => ['nullable', 'integer', 'min:-100', 'max:1000'],
+            'defense' => ['array'],
+            'defense.*.*' => ['nullable', 'integer', 'min:-100', 'max:1000'],
+        ]);
+
+        $attack = $request->input('attack', []);
+        $defense = $request->input('defense', []);
+
+        $scopes = [
+            RankingBonus::SCOPE_PROFICIENCY => range(1, 5),
+            RankingBonus::SCOPE_COMMANDER => range(1, 10),
+        ];
+
+        foreach ($scopes as $scope => $levels) {
+            foreach ($levels as $level) {
+                RankingBonus::updateOrCreate(
+                    ['scope' => $scope, 'level' => $level],
+                    [
+                        'attack_percent' => (int) ($attack[$scope][$level] ?? 0),
+                        'defense_percent' => (int) ($defense[$scope][$level] ?? 0),
+                    ]
+                );
+            }
+        }
+
+        return redirect()
+            ->route('admin.ranking-bonuses.edit')
+            ->with('status', 'Bônus de ranking atualizados.');
     }
 
     /**

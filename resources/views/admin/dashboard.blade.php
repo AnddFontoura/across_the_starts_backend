@@ -132,6 +132,35 @@
     </div>
 
     <div class="card">
+        <h2>Comandantes</h2>
+        <p class="muted">
+            Definições de comandante e bônus por ranking.
+            <a href="{{ route('admin.ranking-bonuses.edit') }}">Editar bônus de ranking →</a>
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Definição</th>
+                    <th>Recrutável?</th>
+                    <th>Ranking máx.</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($commanderDefinitions as $def)
+                    <tr>
+                        <td>
+                            <span class="swatch" style="background: {{ $def->color }}"></span>
+                            {{ $def->name }}
+                        </td>
+                        <td>{{ $def->is_recruitable ? 'Sim' : 'Não' }}</td>
+                        <td>{{ $def->max_rank }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
         <h2>Configurações globais</h2>
         <form method="POST" action="{{ route('admin.settings.update') }}">
             @csrf

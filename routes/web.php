@@ -25,6 +25,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('structure-types/{structureType}/overrides/{override}', [ConfigController::class, 'deleteLevelOverride'])
             ->name('structure-types.overrides.delete');
 
+        // Commanders / ranking bonuses
+        Route::get('ranking-bonuses', [ConfigController::class, 'editRankingBonuses'])
+            ->name('ranking-bonuses.edit');
+        Route::put('ranking-bonuses', [ConfigController::class, 'updateRankingBonuses'])
+            ->name('ranking-bonuses.update');
+
         // Aircraft
         Route::get('aircraft-matrix', [ConfigController::class, 'editAircraftMatrix'])
             ->name('aircraft-matrix.edit');

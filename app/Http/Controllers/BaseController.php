@@ -170,6 +170,33 @@ class BaseController extends Controller
         // terrestrial base. The planetary base spends from and reports it too.
         $wallet = $base->wallet();
 
+        // Fleets are shown as movable markers on the PLANETARY base only.
+        $fleets = [];
+        if ($scope === 'planetary') {
+            $composition = app(\App\Services\FleetCompositionService::class);
+            $fleets = \App\Models\Fleet::where('user_id', $base->user_id)
+                ->with(['commander', 'slots'])
+                ->orderBy('id')
+                ->get()
+                ->map(function (\App\Models\Fleet $f) use ($composition) {
+                    $slots = $f->slots->map(fn ($s) => [
+                        'ship_design_id' => $s->ship_design_id,
+                        'quantity' => (int) $s->quantity,
+                    ])->all();
+
+                    return [
+                        'id' => $f->id,
+                        'name' => $f->name,
+                        'x' => $f->x,
+                        'y' => $f->y,
+                        'size' => \App\Models\Fleet::SIZE,
+                        'commander_name' => $f->commander?->name,
+                        'summary' => $composition->summarize($slots, $f->commander),
+                    ];
+                })
+                ->values();
+        }
+
         return [
             'base' => [
                 'id' => $base->id,
@@ -203,6 +230,7 @@ class BaseController extends Controller
             ],
             'structures' => $structures,
             'structure_types' => $types,
+            'fleets' => $fleets,
         ];
     }
 }

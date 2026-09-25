@@ -1,0 +1,213 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Aircraft;
+use App\Models\Commander;
+use App\Models\Fleet;
+use App\Models\RankingBonus;
+use App\Models\ShipDesign;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Composes fleets and computes their aggregated combat stats.
+ *
+ * Rules:
+ *  - up to 12 ship-design slots per fleet, each stacking <= 5000 ships;
+ *  - ships come from the player's built inventory (aircraft.quantity) minus
+ *    what's already reserved by other fleets; a design can't be over-assigned;
+ *  - aggregate attack/hull/shield are the SUM across all ships; movement is
+ *    the MINIMUM movement among the fleet's ships (the slowest sets the pace);
+ *  - the leading commander's proficiency bonuses apply: the ship-class bonus
+ *    scales that class's ships (attack + defense), the weapon bonus scales the
+ *    attack coming from that weapon type. Commander-rank bonus applies overall.
+ */
+class FleetCompositionService
+{
+    public function __construct(protected ShipDesignService $designs)
+    {
+    }
+
+    /**
+     * How many ships of a design the player still has free to assign (owned
+     * minus quantities reserved by fleets, optionally excluding one fleet).
+     */
+    public function availableForDesign(User $user, int $designId, ?int $excludeFleetId = null): int
+    {
+        $owned = (int) Aircraft::where('user_id', $user->id)
+            ->where('ship_design_id', $designId)
+            ->sum('quantity');
+
+        $reservedQuery = DB::table('fleet_slots')
+            ->join('fleets', 'fleets.id', '=', 'fleet_slots.fleet_id')
+            ->where('fleets.user_id', $user->id)
+            ->where('fleet_slots.ship_design_id', $designId);
+
+        if ($excludeFleetId !== null) {
+            $reservedQuery->where('fleets.id', '!=', $excludeFleetId);
+        }
+
+        $reserved = (int) $reservedQuery->sum('fleet_slots.quantity');
+
+        return max(0, $owned - $reserved);
+    }
+
+    /**
+     * Validate a proposed composition (list of {ship_design_id, quantity}).
+     *
+     * @param  array<int, array{ship_design_id:int, quantity:int}>  $slots
+     *
+     * @throws ValidationException
+     */
+    public function validate(User $user, array $slots, ?int $excludeFleetId = null): void
+    {
+        $slots = array_values(array_filter($slots, fn ($s) => (int) $s['quantity'] > 0));
+
+        if (count($slots) < 1) {
+            throw ValidationException::withMessages([
+                'slots' => ['A frota precisa de pelo menos 1 nave.'],
+            ]);
+        }
+
+        if (count($slots) > Fleet::MAX_SLOTS) {
+            throw ValidationException::withMessages([
+                'slots' => ['Máximo de '.Fleet::MAX_SLOTS.' modelos por frota.'],
+            ]);
+        }
+
+        // Unique designs per fleet.
+        $ids = array_map(fn ($s) => (int) $s['ship_design_id'], $slots);
+        if (count($ids) !== count(array_unique($ids))) {
+            throw ValidationException::withMessages([
+                'slots' => ['Cada modelo só pode ocupar um slot na frota.'],
+            ]);
+        }
+
+        foreach ($slots as $s) {
+            $qty = (int) $s['quantity'];
+            $designId = (int) $s['ship_design_id'];
+
+            if ($qty > Fleet::MAX_PER_SLOT) {
+                throw ValidationException::withMessages([
+                    'slots' => ['Máximo de '.Fleet::MAX_PER_SLOT.' naves por slot.'],
+                ]);
+            }
+
+            $design = ShipDesign::where('user_id', $user->id)->find($designId);
+            if (! $design) {
+                throw ValidationException::withMessages([
+                    'slots' => ["Modelo inválido: {$designId}."],
+                ]);
+            }
+
+            $available = $this->availableForDesign($user, $designId, $excludeFleetId);
+            if ($qty > $available) {
+                throw ValidationException::withMessages([
+                    'slots' => ["Naves insuficientes de {$design->name}. Disponível: {$available}."],
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Compute aggregated stats for a set of slots led by an optional commander.
+     *
+     * @param  array<int, array{ship_design_id:int, quantity:int}>  $slots
+     */
+    public function summarize(array $slots, ?Commander $commander = null): array
+    {
+        $bonuses = $this->bonusTable();
+
+        $totalAttack = 0;
+        $totalHull = 0;
+        $totalShield = 0;
+        $totalShips = 0;
+        $minMovement = null;
+
+        foreach ($slots as $s) {
+            $qty = (int) $s['quantity'];
+            if ($qty <= 0) {
+                continue;
+            }
+
+            $design = ShipDesign::with(['baseType', 'modules.moduleType'])->find((int) $s['ship_design_id']);
+            if (! $design) {
+                continue;
+            }
+
+            $summary = $this->designs->summarize($design->baseType, $design->modules->map(fn ($dm) => [
+                'module' => $dm->moduleType,
+                'quantity' => (int) $dm->quantity,
+            ])->all());
+
+            $class = $design->baseType->class;
+            $weaponType = $summary['weapon_type']; // null | machinegun | laser | missile
+
+            // Per-ship base stats.
+            $attack = (int) $summary['attack'];
+            $hull = (int) $summary['hull'];
+            $shield = (int) $summary['shield'];
+            $movement = (int) $summary['movement'];
+
+            // Commander proficiency bonuses (percent), if a commander leads.
+            $atkPct = 0;
+            $defPct = 0;
+            if ($commander) {
+                // Ship-class proficiency: attack + defense on that class.
+                $classLevel = $commander->classProficiency($class);
+                $atkPct += $bonuses['proficiency'][$classLevel]['attack'] ?? 0;
+                $defPct += $bonuses['proficiency'][$classLevel]['defense'] ?? 0;
+
+                // Weapon proficiency: attack only, on the ship's weapon type.
+                if ($weaponType) {
+                    $weaponLevel = $commander->weaponProficiency($weaponType);
+                    $atkPct += $bonuses['proficiency'][$weaponLevel]['attack'] ?? 0;
+                }
+
+                // Commander rank: overall attack + defense.
+                $rankLevel = (int) $commander->rank;
+                $atkPct += $bonuses['commander'][$rankLevel]['attack'] ?? 0;
+                $defPct += $bonuses['commander'][$rankLevel]['defense'] ?? 0;
+            }
+
+            $attack = (int) round($attack * (100 + $atkPct) / 100);
+            $hull = (int) round($hull * (100 + $defPct) / 100);
+            $shield = (int) round($shield * (100 + $defPct) / 100);
+
+            $totalAttack += $attack * $qty;
+            $totalHull += $hull * $qty;
+            $totalShield += $shield * $qty;
+            $totalShips += $qty;
+            $minMovement = $minMovement === null ? $movement : min($minMovement, $movement);
+        }
+
+        return [
+            'attack' => $totalAttack,
+            'hull' => $totalHull,
+            'shield' => $totalShield,
+            'movement' => $minMovement ?? 0,
+            'ships' => $totalShips,
+        ];
+    }
+
+    /**
+     * Ranking-bonus lookup keyed by scope + level.
+     *
+     * @return array{proficiency: array<int, array{attack:int, defense:int}>, commander: array<int, array{attack:int, defense:int}>}
+     */
+    protected function bonusTable(): array
+    {
+        $table = ['proficiency' => [], 'commander' => []];
+
+        foreach (RankingBonus::all() as $b) {
+            $table[$b->scope][$b->level] = [
+                'attack' => (int) $b->attack_percent,
+                'defense' => (int) $b->defense_percent,
+            ];
+        }
+
+        return $table;
+    }
+}

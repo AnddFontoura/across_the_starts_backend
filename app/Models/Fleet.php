@@ -12,10 +12,20 @@ class Fleet extends Model
     public const MAX_SLOTS = 12;
     public const MAX_PER_SLOT = 5000;
 
+    /** Marker footprint on the planetary map (generic units). */
+    public const SIZE = 10;
+
     protected $fillable = [
         'user_id',
         'commander_id',
         'name',
+        'x',
+        'y',
+    ];
+
+    protected $casts = [
+        'x' => 'integer',
+        'y' => 'integer',
     ];
 
     public function user(): BelongsTo
