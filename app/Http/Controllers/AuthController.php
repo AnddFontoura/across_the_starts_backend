@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Base;
 use App\Models\User;
+use App\Services\PlanetPlacementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -11,6 +12,11 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function __construct(
+        protected PlanetPlacementService $placement,
+    ) {
+    }
+
     /**
      * Register a new player and create their base.
      */
@@ -30,8 +36,10 @@ class AuthController extends Controller
             'password' => $data['password'], // hashed cast on the model
         ]);
 
-        // Every player starts with one 1000x1000 base.
-        Base::create(['user_id' => $user->id]);
+        // Every player starts with one 1000x1000 base, dropped at a random
+        // spot in the galaxy (one of 30 quadrants, up to 1000 planets each).
+        $base = Base::create(['user_id' => $user->id]);
+        $this->placement->place($base);
 
         $token = $user->createToken('game')->plainTextToken;
 
@@ -59,8 +67,15 @@ class AuthController extends Controller
             ]);
         }
 
-        // Ensure a base exists (covers users created before bases existed).
-        Base::firstOrCreate(['user_id' => $user->id]);
+        // Ensure a base exists (covers users created before bases existed) and
+        // that it has a galaxy position (covers accounts predating quadrants).
+        $base = Base::firstOrCreate([
+            'user_id' => $user->id,
+            'kind' => 'terrestrial',
+        ]);
+        if ($base->quadrant === null || $base->slot === null) {
+            $this->placement->place($base);
+        }
 
         $token = $user->createToken('game')->plainTextToken;
 

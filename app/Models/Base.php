@@ -11,6 +11,8 @@ class Base extends Model
     protected $fillable = [
         'user_id',
         'kind',
+        'quadrant',
+        'slot',
         'width',
         'height',
         'gold',
@@ -22,6 +24,8 @@ class Base extends Model
     ];
 
     protected $casts = [
+        'quadrant' => 'integer',
+        'slot' => 'integer',
         'width' => 'integer',
         'height' => 'integer',
         'gold' => 'integer',

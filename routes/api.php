@@ -6,6 +6,7 @@ use App\Http\Controllers\BaseController;
 use App\Http\Controllers\BattleController;
 use App\Http\Controllers\CommanderController;
 use App\Http\Controllers\FleetController;
+use App\Http\Controllers\GalaxyController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\ShipDesignController;
@@ -23,6 +24,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Base / terrain
     Route::get('/base', [BaseController::class, 'show']);
+
+    // Galaxy: quadrant overview, planets in a quadrant, and attack-target info
+    Route::get('/galaxy', [GalaxyController::class, 'index']);
+    Route::get('/galaxy/quadrant/{quadrant}', [GalaxyController::class, 'show']);
+    Route::get('/galaxy/planet/{base}', [GalaxyController::class, 'target']);
 
     // Structures
     Route::post('/structures', [StructureController::class, 'store']);
