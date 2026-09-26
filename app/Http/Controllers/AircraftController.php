@@ -29,12 +29,30 @@ class AircraftController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        // Finished builds are NOT auto-settled here: the player must collect
+        // them explicitly via POST /aircraft/collect ("Recolher naves"). This
+        // lets completed ships sit in the slot's queue until claimed.
+        return response()->json($this->snapshot($request));
+    }
+
+    /**
+     * Collect ("recolher") all finished builds: promote every build order whose
+     * timer has elapsed into the fleet and clear it from the queue. Returns the
+     * refreshed snapshot plus how many aircraft were collected.
+     */
+    public function collect(Request $request): JsonResponse
+    {
         $user = $request->user();
 
-        // Finalize any completed builds first.
-        $this->fleet->settle($user);
+        $collected = $this->fleet->settle($user);
 
-        return response()->json($this->snapshot($request));
+        return response()->json([
+            'message' => $collected > 0
+                ? "{$collected} nave(s) recolhida(s)."
+                : 'Nenhuma nave pronta para recolher.',
+            'collected' => $collected,
+            ...$this->snapshot($request),
+        ]);
     }
 
     /**

@@ -50,6 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Aircraft / fleet (account-level)
     Route::get('/aircraft', [AircraftController::class, 'index']);
     Route::post('/aircraft/build', [AircraftController::class, 'build']);
+    Route::post('/aircraft/collect', [AircraftController::class, 'collect']);
 
     // Ship designs (custom models built from modules)
     Route::get('/ship-designs', [ShipDesignController::class, 'index']);
