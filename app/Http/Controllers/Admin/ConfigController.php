@@ -691,6 +691,7 @@ class ConfigController extends Controller
             'consumes_required_item' => ['nullable', 'boolean'],
             'color' => ['nullable', 'string', 'max:20'],
             'icon' => ['nullable', 'string', 'max:255'],
+            'image_url' => ['nullable', 'string', 'max:2048'],
             'effects' => ['nullable', 'string'],
             // Dependencies: arrays of definition id + min level (parallel).
             'dep_id' => ['nullable', 'array'],
@@ -749,6 +750,7 @@ class ConfigController extends Controller
             'consumes_required_item' => $isPlant ? $request->boolean('consumes_required_item') : false,
             'color' => $data['color'] ?? null,
             'icon' => $data['icon'] ?? null,
+            'image_url' => $data['image_url'] ?: null,
         ];
 
         // Build dependency + item pairs (ignoring blank rows).

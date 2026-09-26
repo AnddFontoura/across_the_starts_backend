@@ -55,6 +55,7 @@ class ResearchDefinition extends Model
         'consumes_required_item',
         'icon',
         'color',
+        'image_url',
     ];
 
     protected $casts = [

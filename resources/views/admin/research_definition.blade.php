@@ -72,6 +72,26 @@
                 <textarea name="description" rows="2">{{ old('description', $def->description) }}</textarea>
             </div>
 
+            <div class="grid grid-2" style="align-items:end;">
+                <div>
+                    <label>Imagem (URL)</label>
+                    <input name="image_url" value="{{ old('image_url', $def->image_url) }}" placeholder="https://... (opcional)">
+                    <small class="muted">
+                        Uma imagem por pesquisa, usada em todos os níveis. Tecnologias recebem um brilho
+                        dourado por cima que aumenta conforme o nível (efeito visual no jogo). Para plantas,
+                        use a mesma imagem do item da nave. Vazio = placeholder 🖼️.
+                    </small>
+                </div>
+                <div>
+                    <label>Prévia</label>
+                    @if ($def->image_url)
+                        <img src="{{ $def->image_url }}" alt="{{ $def->name }}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(120,160,220,.3);">
+                    @else
+                        <div style="width:64px;height:64px;display:grid;place-items:center;font-size:1.8rem;border-radius:8px;border:1px dashed rgba(120,160,220,.4);background:#0e1420;">🖼️</div>
+                    @endif
+                </div>
+            </div>
+
             <h3 style="margin:.5rem 0 0;">Custo e tempo</h3>
             <div class="grid grid-2">
                 <div>

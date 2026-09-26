@@ -152,6 +152,7 @@ class ResearchController extends Controller
                 'area_label' => $def->areaLabel(),
                 'color' => $def->color,
                 'icon' => $def->icon,
+                'image_url' => $def->image_url,
                 'current_level' => $current,
                 'max_level' => $def->max_level,
                 'is_max_level' => $isMax,
