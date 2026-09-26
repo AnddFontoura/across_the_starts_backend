@@ -18,6 +18,7 @@ class StructureType extends Model
         'scope',
         'production_per_hour',
         'color',
+        'image_url',
         'max_level',
         'production_base',
         'production_growth',

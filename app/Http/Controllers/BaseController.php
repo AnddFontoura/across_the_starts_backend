@@ -110,6 +110,7 @@ class BaseController extends Controller
                 'height' => $s->type->height,
                 'resource' => $s->type->resource,
                 'color' => $s->type->color,
+                'image_url' => $s->type->image_url,
                 'scope' => $s->type->scope,
             ],
         ])->values();
@@ -129,6 +130,7 @@ class BaseController extends Controller
             'resource' => $t->resource,
             'max_level' => $t->max_level,
             'color' => $t->color,
+            'image_url' => $t->image_url,
             'build_time' => $t->build_time,
             'is_unique' => $t->is_unique,
             // Level-1 range in cells (for placement preview of defenses).

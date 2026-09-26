@@ -76,6 +76,22 @@
                 </div>
             </div>
 
+            <div class="grid grid-2" style="align-items:end;">
+                <div>
+                    <label>Imagem (URL)</label>
+                    <input name="image_url" value="{{ old('image_url', $type->image_url) }}" placeholder="https://... (opcional)">
+                    <small class="muted">Arte da construção no catálogo e no terreno. Vazio = usa a cor como placeholder.</small>
+                </div>
+                <div>
+                    <label>Prévia</label>
+                    @if ($type->image_url)
+                        <img src="{{ $type->image_url }}" alt="{{ $type->name }}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid rgba(120,160,220,.3);">
+                    @else
+                        <div style="width:64px;height:64px;display:grid;place-items:center;font-size:1.8rem;border-radius:8px;border:1px dashed rgba(120,160,220,.4);background:{{ $type->color }};">🏗️</div>
+                    @endif
+                </div>
+            </div>
+
             <div class="grid grid-3">
                 <div>
                     <label>Nível máximo</label>

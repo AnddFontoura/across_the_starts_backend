@@ -414,10 +414,11 @@ class ConfigController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'category' => ['required', 'in:producer,storage,command,defense,support'],
+            'category' => ['required', 'in:producer,storage,command,defense,support,inventory,research'],
             'scope' => ['required', 'in:terrestrial,planetary'],
             'resource' => ['required', 'in:gold,metal,energy'],
             'color' => ['required', 'string', 'max:20'],
+            'image_url' => ['nullable', 'string', 'max:2048'],
             'width' => ['required', 'integer', 'min:1'],
             'height' => ['required', 'integer', 'min:1'],
             'max_level' => ['required', 'integer', 'min:1', 'max:100'],
