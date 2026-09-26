@@ -183,6 +183,7 @@ class BaseController extends Controller
         if ($scope === 'planetary') {
             $composition = app(\App\Services\FleetCompositionService::class);
             $fleets = \App\Models\Fleet::where('user_id', $base->user_id)
+                ->notInBattle()
                 ->with(['commander', 'slots'])
                 ->orderBy('id')
                 ->get()

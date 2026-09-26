@@ -42,4 +42,35 @@ class Fleet extends Model
     {
         return $this->hasMany(FleetSlot::class);
     }
+
+    /**
+     * Battle-fleet rows referencing this fleet. A fleet is "in battle" (locked)
+     * while any of these belongs to an in-progress instance.
+     */
+    public function battleFleets(): HasMany
+    {
+        return $this->hasMany(BattleFleet::class);
+    }
+
+    /**
+     * Whether this fleet is currently committed to an in-progress battle
+     * instance (and therefore locked out of the base and uneditable).
+     */
+    public function isInBattle(): bool
+    {
+        return $this->battleFleets()
+            ->whereHas('instance', fn ($q) => $q->where('status', BattleInstance::STATUS_IN_PROGRESS))
+            ->exists();
+    }
+
+    /**
+     * Scope: only fleets NOT committed to an in-progress battle. Used to hide
+     * dispatched fleets from the base map and the fleet manager while locked.
+     */
+    public function scopeNotInBattle($query)
+    {
+        return $query->whereDoesntHave('battleFleets.instance', function ($q) {
+            $q->where('status', BattleInstance::STATUS_IN_PROGRESS);
+        });
+    }
 }

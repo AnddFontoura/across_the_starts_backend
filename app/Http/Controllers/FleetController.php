@@ -171,6 +171,12 @@ class FleetController extends Controller
         if ($fleet->user_id !== $request->user()->id) {
             abort(403, 'Essa frota não pertence a você.');
         }
+
+        // A fleet committed to an in-progress investigation is locked: it can't
+        // be edited, moved, or disbanded until the battle ends.
+        if ($fleet->isInBattle()) {
+            abort(423, 'Essa frota está em uma investigação e não pode ser alterada.');
+        }
     }
 
     protected function serializeFleet(Fleet $fleet): array
@@ -237,6 +243,7 @@ class FleetController extends Controller
         $user = $request->user();
 
         $fleets = Fleet::where('user_id', $user->id)
+            ->notInBattle()
             ->with(['commander.definition', 'slots.design.baseType'])
             ->orderBy('id')
             ->get()

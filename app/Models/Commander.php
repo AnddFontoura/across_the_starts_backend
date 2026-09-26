@@ -16,6 +16,13 @@ class Commander extends Model
     /** Highest level a commander may reach (attributes stop growing here). */
     public const LEVEL_MAX = 50;
 
+    /**
+     * Experience required to advance FROM a given level to the next. The curve
+     * is a simple quadratic: EXP_PER_LEVEL_BASE * level^2. Centralised here so
+     * battle rewards and levelling stay balanced in one place.
+     */
+    public const EXP_PER_LEVEL_BASE = 100;
+
     /** Growth factor bounds and the cap on their sum for a single commander. */
     public const GROWTH_FACTOR_MIN = 0.0;
     public const GROWTH_FACTOR_MAX = 10.0;
@@ -27,6 +34,7 @@ class Commander extends Model
         'name',
         'rank',
         'level',
+        'experience',
         'growth_pontaria',
         'growth_desvio',
         'growth_critico',
@@ -43,6 +51,7 @@ class Commander extends Model
     protected $casts = [
         'rank' => 'integer',
         'level' => 'integer',
+        'experience' => 'integer',
         'growth_pontaria' => 'float',
         'growth_desvio' => 'float',
         'growth_critico' => 'float',
@@ -118,6 +127,54 @@ class Commander extends Model
         }
 
         return $out;
+    }
+
+    /**
+     * Experience needed to go from `$level` to `$level + 1`.
+     * Returns 0 once the commander is at (or past) LEVEL_MAX.
+     */
+    public static function expToNext(int $level): int
+    {
+        if ($level >= self::LEVEL_MAX) {
+            return 0;
+        }
+
+        return self::EXP_PER_LEVEL_BASE * $level * $level;
+    }
+
+    /**
+     * Grant experience to this commander, levelling up as thresholds are
+     * crossed (capped at LEVEL_MAX, where surplus exp is discarded). Persists
+     * the change. Returns how many levels were gained.
+     */
+    public function grantExperience(int $amount): int
+    {
+        $amount = max(0, $amount);
+        if ($amount === 0) {
+            return 0;
+        }
+
+        $gained = 0;
+        $this->experience = (int) $this->experience + $amount;
+
+        while ($this->level < self::LEVEL_MAX) {
+            $needed = self::expToNext((int) $this->level);
+            if ($needed <= 0 || $this->experience < $needed) {
+                break;
+            }
+            $this->experience -= $needed;
+            $this->level++;
+            $gained++;
+        }
+
+        // At max level, stop accumulating surplus (attributes cap at 50).
+        if ($this->level >= self::LEVEL_MAX) {
+            $this->experience = 0;
+        }
+
+        $this->save();
+
+        return $gained;
     }
 
     /**

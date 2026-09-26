@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\ConfigController;
+use App\Http\Controllers\Admin\InvestigationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('admin.login'));
@@ -72,5 +73,29 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->name('research-definitions.destroy');
 
         Route::put('settings', [ConfigController::class, 'updateSettings'])->name('settings.update');
+
+        // Investigações interplanetárias (definições + frotas inimigas + prêmios)
+        Route::get('investigations', [InvestigationController::class, 'index'])
+            ->name('investigations.index');
+        Route::get('investigations/create', [InvestigationController::class, 'create'])
+            ->name('investigations.create');
+        Route::post('investigations', [InvestigationController::class, 'store'])
+            ->name('investigations.store');
+        Route::get('investigations/{investigation}', [InvestigationController::class, 'edit'])
+            ->name('investigations.edit');
+        Route::put('investigations/{investigation}', [InvestigationController::class, 'update'])
+            ->name('investigations.update');
+        Route::delete('investigations/{investigation}', [InvestigationController::class, 'destroy'])
+            ->name('investigations.destroy');
+
+        Route::post('investigations/{investigation}/enemy-fleets', [InvestigationController::class, 'saveEnemyFleet'])
+            ->name('investigations.enemy-fleets.save');
+        Route::delete('investigations/{investigation}/enemy-fleets/{enemyFleet}', [InvestigationController::class, 'deleteEnemyFleet'])
+            ->name('investigations.enemy-fleets.delete');
+
+        Route::post('investigations/{investigation}/prizes', [InvestigationController::class, 'savePrize'])
+            ->name('investigations.prizes.save');
+        Route::delete('investigations/{investigation}/prizes/{prize}', [InvestigationController::class, 'deletePrize'])
+            ->name('investigations.prizes.delete');
     });
 });

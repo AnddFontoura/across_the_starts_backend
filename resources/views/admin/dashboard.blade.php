@@ -203,6 +203,15 @@
     </div>
 
     <div class="card">
+        <h2>Investigações interplanetárias</h2>
+        <p class="muted">
+            Batalhas pré-definidas iniciadas pelo Centro de Operações: frotas inimigas fixas, limite de rounds,
+            e prêmios (itens) + experiência para os comandantes.
+        </p>
+        <p><a class="btn btn-sm" href="{{ route('admin.investigations.index') }}">Gerenciar investigações →</a></p>
+    </div>
+
+    <div class="card">
         <h2>Configurações globais</h2>
         <form method="POST" action="{{ route('admin.settings.update') }}">
             @csrf

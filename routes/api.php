@@ -3,6 +3,7 @@
 use App\Http\Controllers\AircraftController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BaseController;
+use App\Http\Controllers\BattleController;
 use App\Http\Controllers\CommanderController;
 use App\Http\Controllers\FleetController;
 use App\Http\Controllers\InventoryController;
@@ -63,4 +64,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/fleets/{fleet}', [FleetController::class, 'update']);
     Route::patch('/fleets/{fleet}/position', [FleetController::class, 'move']);
     Route::delete('/fleets/{fleet}', [FleetController::class, 'destroy']);
+
+    // Investigações interplanetárias (batalhas em tempo real, passo a passo)
+    Route::get('/investigations', [BattleController::class, 'index']);
+    Route::post('/investigations/start', [BattleController::class, 'start']);
+    Route::get('/battles/active', [BattleController::class, 'active']);
+    Route::get('/battles/{battle}', [BattleController::class, 'show']);
+    Route::post('/battles/{battle}/step', [BattleController::class, 'step']);
+    Route::post('/battles/{battle}/claim', [BattleController::class, 'claim']);
+    Route::post('/battles/{battle}/abandon', [BattleController::class, 'abandon']);
 });

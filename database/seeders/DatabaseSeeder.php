@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             ModuleTypeSeeder::class,
             CommanderSeeder::class,
             ItemSeeder::class,
+            InvestigationSeeder::class,
             GameSettingSeeder::class,
             AdminUserSeeder::class,
         ]);
