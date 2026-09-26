@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             StructureTypeSeeder::class,
+            ResearchSeeder::class,
             AircraftTypeSeeder::class,
             ModuleTypeSeeder::class,
             CommanderSeeder::class,

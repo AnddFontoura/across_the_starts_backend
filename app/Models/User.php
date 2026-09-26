@@ -98,4 +98,13 @@ class User extends Authenticatable
     {
         return $this->hasMany(CommanderRecruitment::class);
     }
+
+    /**
+     * The player's item inventory: one stack (row) per owned item. Held in the
+     * "Forte Protetor"; the building's level defines how many slots are free.
+     */
+    public function playerItems(): HasMany
+    {
+        return $this->hasMany(PlayerItem::class);
+    }
 }

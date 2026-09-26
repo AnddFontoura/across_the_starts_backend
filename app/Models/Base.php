@@ -150,9 +150,16 @@ class Base extends Model
      */
     public function totalProtection(): int
     {
-        return $this->structures
+        $fromStructures = $this->structures
             ->filter(fn ($s) => $s->type->isStorage())
             ->sum(fn ($s) => $s->protection());
+
+        // Absolute protection bonus from the owner's completed research
+        // (e.g. the "warehouse protection" technology: +1,000,000 per level).
+        $fromResearch = app(\App\Services\ResearchBonusService::class)
+            ->warehouseProtectionFlat($this->user);
+
+        return (int) $fromStructures + (int) $fromResearch;
     }
 
     /**
@@ -266,6 +273,7 @@ class Base extends Model
         return match ($category) {
             'command' => (int) GameSetting::get('max_command_per_base', 1),
             'storage' => (int) GameSetting::get('max_storage_per_base', 1),
+            'inventory' => (int) GameSetting::get('max_inventory_per_base', 1),
             default => null,
         };
     }

@@ -198,6 +198,52 @@ class StructureLevelCalculator
     }
 
     /**
+     * Number of inventory slots (distinct item stacks the player can hold)
+     * granted at a given level (inventory structures such as the Forte
+     * Protetor). Linear progression:
+     *
+     *     slots(level) = base + per_level * (level - 1)
+     *
+     * e.g. base 30, +2/level: level 1 = 30, level 30 = 88.
+     */
+    public function inventorySlots(StructureType $type, int $level): int
+    {
+        $level = $this->clampLevel($type, $level);
+
+        $base = (int) $type->inventory_slots_base;
+        if ($base <= 0) {
+            return 0;
+        }
+
+        return $base + (int) $type->inventory_slots_per_level * ($level - 1);
+    }
+
+    /**
+     * Percentage reduction to research WAIT TIME at a given level (research
+     * structures such as the Centro de Pesquisa). Linear progression, clamped
+     * to the type's configured cap (defaults to 60%):
+     *
+     *     reduction(level) = min(cap, base + per_level * (level - 1))
+     *
+     * Never affects gold cost or required inventory items.
+     */
+    public function researchTimeReduction(StructureType $type, int $level): int
+    {
+        $level = $this->clampLevel($type, $level);
+
+        $value = (int) $type->research_time_reduction_base
+            + (int) $type->research_time_reduction_per_level * ($level - 1);
+
+        // A cap of 0 in the DB would be nonsensical; treat it as the 60% ceiling.
+        $cap = (int) $type->research_time_reduction_cap;
+        if ($cap <= 0) {
+            $cap = 60;
+        }
+
+        return max(0, min($cap, $value));
+    }
+
+    /**
      * Cost (per resource) to upgrade FROM $level TO $level + 1.
      * Returns null when already at max level, otherwise an array with keys
      * gold, metal, energy.

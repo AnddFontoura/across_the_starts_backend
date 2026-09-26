@@ -38,6 +38,11 @@ class StructureType extends Model
         'build_slots_tiers',
         'fleet_capacity_base',
         'fleet_capacity_growth',
+        'inventory_slots_base',
+        'inventory_slots_per_level',
+        'research_time_reduction_base',
+        'research_time_reduction_per_level',
+        'research_time_reduction_cap',
         'upgrade_cost_gold_base',
         'upgrade_cost_gold_growth',
         'upgrade_cost_metal_base',
@@ -76,6 +81,11 @@ class StructureType extends Model
         'build_slots_tiers' => 'array',
         'fleet_capacity_base' => 'integer',
         'fleet_capacity_growth' => 'float',
+        'inventory_slots_base' => 'integer',
+        'inventory_slots_per_level' => 'integer',
+        'research_time_reduction_base' => 'integer',
+        'research_time_reduction_per_level' => 'integer',
+        'research_time_reduction_cap' => 'integer',
         'upgrade_cost_gold_base' => 'integer',
         'upgrade_cost_gold_growth' => 'float',
         'upgrade_cost_metal_base' => 'integer',
@@ -130,6 +140,26 @@ class StructureType extends Model
     public function isSupport(): bool
     {
         return $this->category === 'support';
+    }
+
+    /**
+     * An inventory structure (e.g. the "Forte Protetor"): the planet owner's
+     * item box. Grants the player a number of inventory slots that scales with
+     * level. Doesn't produce, store resources or attack.
+     */
+    public function isInventory(): bool
+    {
+        return $this->category === 'inventory';
+    }
+
+    /**
+     * A research structure (the "Centro de Pesquisa"): unlocks the research
+     * panel and reduces research wait time as its level rises. Doesn't produce,
+     * store resources or attack.
+     */
+    public function isResearch(): bool
+    {
+        return $this->category === 'research';
     }
 
     public function isTerrestrial(): bool

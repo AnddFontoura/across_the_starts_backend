@@ -51,6 +51,7 @@ class StructureController extends Controller
             $categoryLabels = [
                 'command' => 'Centro de Operações',
                 'storage' => 'Depósito',
+                'inventory' => 'Forte Protetor',
             ];
             $label = $categoryLabels[$type->category] ?? 'estruturas dessa categoria';
 

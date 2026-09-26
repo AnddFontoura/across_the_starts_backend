@@ -9,6 +9,8 @@ use App\Models\CommanderDefinition;
 use App\Models\GameSetting;
 use App\Models\ModuleType;
 use App\Models\RankingBonus;
+use App\Models\ResearchDefinition;
+use App\Models\ResearchDefinitionItem;
 use App\Models\StructureLevelConfig;
 use App\Models\StructureType;
 use App\Services\StructureLevelCalculator;
@@ -29,6 +31,7 @@ class ConfigController extends Controller
             'aircraftTypes' => AircraftType::orderBy('id')->get(),
             'moduleTypes' => ModuleType::orderBy('id')->get(),
             'commanderDefinitions' => CommanderDefinition::orderBy('id')->get(),
+            'researchDefinitions' => ResearchDefinition::orderBy('type')->orderBy('id')->get(),
             'settings' => GameSetting::orderBy('key')->get(),
         ]);
     }
@@ -570,5 +573,222 @@ class ConfigController extends Controller
         return redirect()
             ->route('admin.dashboard')
             ->with('status', 'Configurações globais atualizadas.');
+    }
+
+    // -----------------------------------------------------------------------
+    // Research definitions (technologies + plants)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Show the form to create a new research definition.
+     */
+    public function createResearchDefinition(): View
+    {
+        return view('admin.research_definition', [
+            'def' => new ResearchDefinition([
+                'type' => ResearchDefinition::TYPE_TECHNOLOGY,
+                'area' => ResearchDefinition::AREA_TERRESTRIAL,
+                'max_level' => 10,
+                'gold_cost_growth' => 1.5,
+                'research_time_growth' => 1.4,
+                'color' => '#7ec8e3',
+            ]),
+            'creating' => true,
+            'allDefinitions' => ResearchDefinition::orderBy('name')->get(),
+        ]);
+    }
+
+    /**
+     * Store a new research definition.
+     */
+    public function storeResearchDefinition(Request $request): RedirectResponse
+    {
+        $data = $this->validateResearchDefinition($request, null);
+        if ($data instanceof RedirectResponse) {
+            return $data;
+        }
+
+        $def = ResearchDefinition::create($data['fields']);
+        $this->syncResearchRelations($def, $data);
+
+        return redirect()
+            ->route('admin.research-definitions.edit', $def)
+            ->with('status', 'Pesquisa criada.');
+    }
+
+    /**
+     * Edit a research definition.
+     */
+    public function editResearchDefinition(ResearchDefinition $researchDefinition): View
+    {
+        $researchDefinition->load(['dependencies', 'requiredItems']);
+
+        return view('admin.research_definition', [
+            'def' => $researchDefinition,
+            'creating' => false,
+            // Other definitions available as dependencies (exclude self).
+            'allDefinitions' => ResearchDefinition::where('id', '!=', $researchDefinition->id)
+                ->orderBy('name')->get(),
+        ]);
+    }
+
+    /**
+     * Update a research definition.
+     */
+    public function updateResearchDefinition(Request $request, ResearchDefinition $researchDefinition): RedirectResponse
+    {
+        $data = $this->validateResearchDefinition($request, $researchDefinition);
+        if ($data instanceof RedirectResponse) {
+            return $data;
+        }
+
+        $researchDefinition->update($data['fields']);
+        $this->syncResearchRelations($researchDefinition, $data);
+
+        return redirect()
+            ->route('admin.research-definitions.edit', $researchDefinition)
+            ->with('status', 'Pesquisa atualizada.');
+    }
+
+    /**
+     * Delete a research definition.
+     */
+    public function destroyResearchDefinition(ResearchDefinition $researchDefinition): RedirectResponse
+    {
+        $researchDefinition->delete();
+
+        return redirect()
+            ->route('admin.dashboard')
+            ->with('status', 'Pesquisa removida.');
+    }
+
+    /**
+     * Validate + normalize a research definition payload. Returns an array
+     * with 'fields' (model attributes), 'dependencies' and 'items', or a
+     * RedirectResponse when the effects JSON is invalid.
+     *
+     * @return array|RedirectResponse
+     */
+    protected function validateResearchDefinition(Request $request, ?ResearchDefinition $existing)
+    {
+        $keyRule = ['required', 'string', 'max:255', 'regex:/^[a-z0-9_]+$/'];
+        $keyRule[] = $existing
+            ? 'unique:research_definitions,key,'.$existing->id
+            : 'unique:research_definitions,key';
+
+        $data = $request->validate([
+            'key' => $keyRule,
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'type' => ['required', 'in:technology,plant'],
+            'area' => ['nullable', 'in:'.implode(',', ResearchDefinition::AREAS)],
+            'gold_cost' => ['required', 'integer', 'min:0'],
+            'gold_cost_growth' => ['required', 'numeric', 'min:1', 'max:10'],
+            'research_time' => ['required', 'integer', 'min:1'],
+            'research_time_growth' => ['required', 'numeric', 'min:1', 'max:10'],
+            'max_level' => ['required', 'integer', 'min:1', 'max:100'],
+            'required_item_key' => ['nullable', 'string', 'max:255'],
+            'consumes_required_item' => ['nullable', 'boolean'],
+            'color' => ['nullable', 'string', 'max:20'],
+            'icon' => ['nullable', 'string', 'max:255'],
+            'effects' => ['nullable', 'string'],
+            // Dependencies: arrays of definition id + min level (parallel).
+            'dep_id' => ['nullable', 'array'],
+            'dep_id.*' => ['nullable', 'integer', 'exists:research_definitions,id'],
+            'dep_level' => ['nullable', 'array'],
+            'dep_level.*' => ['nullable', 'integer', 'min:1'],
+            // Consumed items: arrays of item key + quantity (parallel).
+            'item_key' => ['nullable', 'array'],
+            'item_key.*' => ['nullable', 'string', 'max:255'],
+            'item_qty' => ['nullable', 'array'],
+            'item_qty.*' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $type = $data['type'];
+        $isPlant = $type === ResearchDefinition::TYPE_PLANT;
+
+        // Plants are always single-level and carry no area.
+        if ($isPlant) {
+            $data['max_level'] = 1;
+            $data['area'] = null;
+        }
+
+        // Parse the effects JSON (a list of effect objects).
+        $rawEffects = trim((string) ($data['effects'] ?? ''));
+        $effects = null;
+        if ($rawEffects !== '') {
+            $decoded = json_decode($rawEffects, true);
+            if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded) || ! array_is_list($decoded)) {
+                return back()->withInput()->withErrors([
+                    'effects' => 'JSON inválido. Use uma lista como [{"type":"resource_production","resource":"gold","percent_per_level":5}].',
+                ]);
+            }
+            foreach ($decoded as $eff) {
+                if (! is_array($eff) || ! isset($eff['type'])) {
+                    return back()->withInput()->withErrors([
+                        'effects' => 'Cada efeito precisa ao menos de um campo "type".',
+                    ]);
+                }
+            }
+            $effects = $decoded;
+        }
+
+        $fields = [
+            'key' => $data['key'],
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'type' => $type,
+            'area' => $data['area'] ?? null,
+            'effects' => $effects,
+            'gold_cost' => (int) $data['gold_cost'],
+            'gold_cost_growth' => (float) $data['gold_cost_growth'],
+            'research_time' => (int) $data['research_time'],
+            'research_time_growth' => (float) $data['research_time_growth'],
+            'max_level' => (int) $data['max_level'],
+            'required_item_key' => $isPlant ? ($data['required_item_key'] ?: null) : null,
+            'consumes_required_item' => $isPlant ? $request->boolean('consumes_required_item') : false,
+            'color' => $data['color'] ?? null,
+            'icon' => $data['icon'] ?? null,
+        ];
+
+        // Build dependency + item pairs (ignoring blank rows).
+        $dependencies = [];
+        foreach (($data['dep_id'] ?? []) as $i => $depId) {
+            if (! $depId) {
+                continue;
+            }
+            $dependencies[(int) $depId] = ['min_level' => (int) ($data['dep_level'][$i] ?? 1)];
+        }
+
+        $items = [];
+        foreach (($data['item_key'] ?? []) as $i => $itemKey) {
+            $itemKey = trim((string) $itemKey);
+            if ($itemKey === '') {
+                continue;
+            }
+            $items[] = ['item_key' => $itemKey, 'quantity' => (int) ($data['item_qty'][$i] ?? 1)];
+        }
+
+        return ['fields' => $fields, 'dependencies' => $dependencies, 'items' => $items];
+    }
+
+    /**
+     * Persist a research definition's dependencies and consumed-item rows.
+     */
+    protected function syncResearchRelations(ResearchDefinition $def, array $data): void
+    {
+        // Dependencies (can't depend on self).
+        unset($data['dependencies'][$def->id]);
+        $def->dependencies()->sync($data['dependencies']);
+
+        // Consumed items: replace the whole set.
+        ResearchDefinitionItem::where('research_definition_id', $def->id)->delete();
+        foreach ($data['items'] as $req) {
+            ResearchDefinitionItem::create([
+                'research_definition_id' => $def->id,
+                'item_key' => $req['item_key'],
+                'quantity' => $req['quantity'],
+            ]);
+        }
     }
 }

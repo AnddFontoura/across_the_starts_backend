@@ -59,6 +59,18 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('module-types/{moduleType}', [ConfigController::class, 'destroyModuleType'])
             ->name('module-types.destroy');
 
+        // Research (technologies + plants)
+        Route::get('research-definitions/create', [ConfigController::class, 'createResearchDefinition'])
+            ->name('research-definitions.create');
+        Route::post('research-definitions', [ConfigController::class, 'storeResearchDefinition'])
+            ->name('research-definitions.store');
+        Route::get('research-definitions/{researchDefinition}', [ConfigController::class, 'editResearchDefinition'])
+            ->name('research-definitions.edit');
+        Route::put('research-definitions/{researchDefinition}', [ConfigController::class, 'updateResearchDefinition'])
+            ->name('research-definitions.update');
+        Route::delete('research-definitions/{researchDefinition}', [ConfigController::class, 'destroyResearchDefinition'])
+            ->name('research-definitions.destroy');
+
         Route::put('settings', [ConfigController::class, 'updateSettings'])->name('settings.update');
     });
 });

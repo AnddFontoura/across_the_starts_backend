@@ -10,6 +10,7 @@ use App\Models\ShipDesign;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Services\ResearchBonusService;
 
 /**
  * Composes fleets and computes their aggregated combat stats.
@@ -26,8 +27,10 @@ use Illuminate\Validation\ValidationException;
  */
 class FleetCompositionService
 {
-    public function __construct(protected ShipDesignService $designs)
-    {
+    public function __construct(
+        protected ShipDesignService $designs,
+        protected ResearchBonusService $researchBonus,
+    ) {
     }
 
     /**
@@ -113,10 +116,12 @@ class FleetCompositionService
 
     /**
      * Compute aggregated stats for a set of slots led by an optional commander.
+     * When $user is provided, the player's researched weapon-damage and
+     * aircraft-class attack bonuses are applied on top of commander bonuses.
      *
      * @param  array<int, array{ship_design_id:int, quantity:int}>  $slots
      */
-    public function summarize(array $slots, ?Commander $commander = null): array
+    public function summarize(array $slots, ?Commander $commander = null, ?User $user = null): array
     {
         $bonuses = $this->bonusTable();
 
@@ -170,6 +175,13 @@ class FleetCompositionService
                 $rankLevel = (int) $commander->rank;
                 $atkPct += $bonuses['commander'][$rankLevel]['attack'] ?? 0;
                 $defPct += $bonuses['commander'][$rankLevel]['defense'] ?? 0;
+            }
+
+            // Researched attack bonuses: per aircraft class and per weapon type
+            // (applied on top of any commander bonuses).
+            if ($user) {
+                $atkPct += $this->researchBonus->classAttackPercent($user, $class);
+                $atkPct += $this->researchBonus->weaponDamagePercent($user, $weaponType);
             }
 
             $attack = (int) round($attack * (100 + $atkPct) / 100);

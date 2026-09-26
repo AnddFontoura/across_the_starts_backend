@@ -161,6 +161,48 @@
     </div>
 
     <div class="card">
+        <h2>Pesquisas</h2>
+        <p class="muted">
+            Tecnologias (por área: terrestre, aérea, armamentos) e plantas. Efeitos configuráveis por JSON,
+            aplicados por nível concluído. Dependências e itens consumidos também são editáveis.
+        </p>
+        <p><a class="btn btn-sm" href="{{ route('admin.research-definitions.create') }}">+ Nova pesquisa</a></p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Pesquisa</th>
+                    <th>Tipo</th>
+                    <th>Área</th>
+                    <th>Nível máx.</th>
+                    <th>Custo (ouro)</th>
+                    <th>Tempo base (s)</th>
+                    <th>Efeitos</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($researchDefinitions as $def)
+                    <tr>
+                        <td>
+                            <span class="swatch" style="background: {{ $def->color ?? '#7ec8e3' }}"></span>
+                            {{ $def->name }}
+                        </td>
+                        <td>{{ $def->type === 'plant' ? 'Planta' : 'Tecnologia' }}</td>
+                        <td>{{ $def->areaLabel() }}</td>
+                        <td>{{ $def->max_level }}</td>
+                        <td>{{ $def->gold_cost }} (x{{ $def->gold_cost_growth }})</td>
+                        <td>{{ $def->research_time }}</td>
+                        <td>{{ count($def->effectsList()) }}</td>
+                        <td>
+                            <a class="btn btn-ghost btn-sm" href="{{ route('admin.research-definitions.edit', $def) }}">Editar</a>
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
         <h2>Configurações globais</h2>
         <form method="POST" action="{{ route('admin.settings.update') }}">
             @csrf

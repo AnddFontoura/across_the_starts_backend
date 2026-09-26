@@ -186,7 +186,8 @@ class FleetController extends Controller
 
         $summary = $this->composition->summarize(
             array_map(fn ($s) => ['ship_design_id' => $s['ship_design_id'], 'quantity' => $s['quantity']], $slots),
-            $fleet->commander
+            $fleet->commander,
+            $fleet->user,
         );
 
         return [

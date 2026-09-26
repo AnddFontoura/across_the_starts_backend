@@ -49,11 +49,41 @@ class Structure extends Model
     }
 
     /**
-     * Production per minute at the current level.
+     * Production per minute at the current level, including any resource
+     * collection boost the player has researched.
      */
     public function productionPerMinute(): int
     {
-        return $this->calculator()->productionPerMinute($this->type, $this->level);
+        $base = $this->calculator()->productionPerMinute($this->type, $this->level);
+
+        if ($base <= 0 || ! $this->type->isProducer()) {
+            return $base;
+        }
+
+        $percent = $this->researchProductionPercent();
+        if ($percent === 0) {
+            return $base;
+        }
+
+        return (int) round($base * (100 + $percent) / 100);
+    }
+
+    /**
+     * Resource-collection boost (percent) from the owner's completed research
+     * for this structure's resource. 0 when the owner can't be resolved.
+     */
+    protected function researchProductionPercent(): int
+    {
+        $user = $this->relationLoaded('base')
+            ? $this->base?->user
+            : ($this->base_id ? optional($this->base()->first())->user : null);
+
+        if ($user === null) {
+            return 0;
+        }
+
+        return app(\App\Services\ResearchBonusService::class)
+            ->resourceProductionPercent($user, $this->type->resource);
     }
 
     /**
@@ -164,6 +194,33 @@ class Structure extends Model
         }
 
         return $this->calculator()->fleetCapacity($this->type, $this->level);
+    }
+
+    /**
+     * Number of inventory slots granted by this structure (inventory only,
+     * e.g. the Forte Protetor, and only once fully constructed).
+     */
+    public function inventorySlots(): int
+    {
+        if (! $this->type->isInventory() || ! $this->is_constructed) {
+            return 0;
+        }
+
+        return $this->calculator()->inventorySlots($this->type, $this->level);
+    }
+
+    /**
+     * Percentage reduction to research wait time granted by this structure
+     * (research structures such as the Centro de Pesquisa, once constructed).
+     * Capped at 60%.
+     */
+    public function researchTimeReduction(): int
+    {
+        if (! $this->type->isResearch() || ! $this->is_constructed) {
+            return 0;
+        }
+
+        return $this->calculator()->researchTimeReduction($this->type, $this->level);
     }
 
     /**

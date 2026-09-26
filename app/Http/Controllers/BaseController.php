@@ -85,6 +85,10 @@ class BaseController extends Controller
             'range' => $s->range(), // attack range in cells (0 = none)
             // Aircraft build-time reduction (%) — support structures only.
             'build_time_reduction' => $s->buildTimeReduction(),
+            // Inventory slots — inventory structures (Forte Protetor) only.
+            'inventory_slots' => $s->inventorySlots(),
+            // Research time reduction (%) — research structures (Centro de Pesquisa) only.
+            'research_time_reduction' => $s->researchTimeReduction(),
             'upgrade_cost' => $s->upgradeCost(), // {gold, metal, energy} | null
             'upgrade_time' => $s->upgradeTime(), // seconds | null
             'demolition_refund' => $s->demolitionRefund(), // {gold, metal, energy}
@@ -131,6 +135,8 @@ class BaseController extends Controller
             'range' => $t->category === 'defense' ? app(\App\Services\StructureLevelCalculator::class)->range($t, 1) : 0,
             // Level-1 aircraft build-time reduction (%) for support structures.
             'build_time_reduction' => $t->category === 'support' ? app(\App\Services\StructureLevelCalculator::class)->buildTimeReduction($t, 1) : 0,
+            // Level-1 research time reduction (%) for research structures.
+            'research_time_reduction' => $t->category === 'research' ? app(\App\Services\StructureLevelCalculator::class)->researchTimeReduction($t, 1) : 0,
         ])->values();
 
         // Type ids already placed on the base (for disabling unique types in UI).
@@ -178,7 +184,7 @@ class BaseController extends Controller
                 ->with(['commander', 'slots'])
                 ->orderBy('id')
                 ->get()
-                ->map(function (\App\Models\Fleet $f) use ($composition) {
+                ->map(function (\App\Models\Fleet $f) use ($composition, $base) {
                     $slots = $f->slots->map(fn ($s) => [
                         'ship_design_id' => $s->ship_design_id,
                         'quantity' => (int) $s->quantity,
@@ -191,7 +197,7 @@ class BaseController extends Controller
                         'y' => $f->y,
                         'size' => \App\Models\Fleet::SIZE,
                         'commander_name' => $f->commander?->name,
-                        'summary' => $composition->summarize($slots, $f->commander),
+                        'summary' => $composition->summarize($slots, $f->commander, $base->user),
                     ];
                 })
                 ->values();

@@ -5,6 +5,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BaseController;
 use App\Http\Controllers\CommanderController;
 use App\Http\Controllers\FleetController;
+use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\ResearchController;
 use App\Http\Controllers\ShipDesignController;
 use App\Http\Controllers\StructureController;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +30,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/structures/{structure}/upgrade', [StructureController::class, 'upgrade']);
     Route::patch('/structures/{structure}/move', [StructureController::class, 'move']);
     Route::delete('/structures/{structure}', [StructureController::class, 'demolish']);
+
+    // Inventory (account-level; item box = Forte Protetor)
+    Route::get('/inventory', [InventoryController::class, 'index']);
+    Route::post('/inventory/items', [InventoryController::class, 'addItem']);
+    Route::delete('/inventory/items', [InventoryController::class, 'removeItem']);
+
+    // Research (account-level; unlocked by the Centro de Pesquisa)
+    Route::get('/research', [ResearchController::class, 'index']);
+    Route::post('/research/start', [ResearchController::class, 'start']);
 
     // Aircraft / fleet (account-level)
     Route::get('/aircraft', [AircraftController::class, 'index']);

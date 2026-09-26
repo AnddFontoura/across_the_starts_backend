@@ -222,6 +222,78 @@ class StructureTypeSeeder extends Seeder
                 'upgrade_time_base' => 200,
                 'upgrade_time_growth' => 1.400,
             ],
+            [
+                'key' => 'protector_fort',
+                'name' => 'Forte Protetor',
+                'description' => 'Caixa de itens do dono do planeta. Guarda os itens (consumíveis e plantas) do jogador. Começa com 30 espaços e ganha +2 por nível. Segue os mesmos requisitos das demais construções da base (limitado pelo nível do Centro de Operações).',
+                'category' => 'inventory',
+                'scope' => 'terrestrial',
+                // Footprint requested: 35x50.
+                'width' => 35,
+                'height' => 50,
+                'resource' => 'gold', // nominal; inventory doesn't produce
+                'production_per_hour' => 0,
+                'color' => '#4caf7d',
+                'max_level' => 30,
+                'production_base' => 0,
+                'production_growth' => 1.000,
+                'capacity_base' => 0,
+                'capacity_growth' => 1.000,
+                'protection_base' => 0,
+                'protection_growth' => 1.000,
+                // Item slots: 30 at level 1, +2 per level (88 at level 30).
+                'inventory_slots_base' => 30,
+                'inventory_slots_per_level' => 2,
+                // Only one Forte Protetor per base.
+                'is_unique' => true,
+                // Costs all three resources.
+                'upgrade_cost_gold_base' => 200,
+                'upgrade_cost_gold_growth' => 1.500,
+                'upgrade_cost_metal_base' => 300,
+                'upgrade_cost_metal_growth' => 1.500,
+                'upgrade_cost_energy_base' => 150,
+                'upgrade_cost_energy_growth' => 1.500,
+                'build_time' => 90,
+                'upgrade_time_base' => 180,
+                'upgrade_time_growth' => 1.400,
+            ],
+            [
+                'key' => 'research_center',
+                'name' => 'Centro de Pesquisa',
+                'description' => 'Libera o painel de pesquisas (tecnologias e plantas). Cada nível reduz o tempo de pesquisa (até 60% no máximo). Só é possível pesquisar uma coisa por vez. Segue os mesmos requisitos das demais construções da base (limitado pelo nível do Centro de Operações).',
+                'category' => 'research',
+                'scope' => 'terrestrial',
+                // Footprint requested: 100x30.
+                'width' => 100,
+                'height' => 30,
+                'resource' => 'gold', // nominal; research doesn't produce
+                'production_per_hour' => 0,
+                'color' => '#7ec8e3',
+                'max_level' => 30,
+                'production_base' => 0,
+                'production_growth' => 1.000,
+                'capacity_base' => 0,
+                'capacity_growth' => 1.000,
+                'protection_base' => 0,
+                'protection_growth' => 1.000,
+                // Research time reduction: 0% at level 1, +3%/level, capped 60%
+                // (reaches the 60% ceiling at level 21).
+                'research_time_reduction_base' => 0,
+                'research_time_reduction_per_level' => 3,
+                'research_time_reduction_cap' => 60,
+                // Only one Centro de Pesquisa per base.
+                'is_unique' => true,
+                // Costs all three resources.
+                'upgrade_cost_gold_base' => 300,
+                'upgrade_cost_gold_growth' => 1.500,
+                'upgrade_cost_metal_base' => 400,
+                'upgrade_cost_metal_growth' => 1.500,
+                'upgrade_cost_energy_base' => 250,
+                'upgrade_cost_energy_growth' => 1.500,
+                'build_time' => 120,
+                'upgrade_time_base' => 240,
+                'upgrade_time_growth' => 1.400,
+            ],
 
             // ---------------------------------------------------------------
             // PLANETARY (orbital) defense base. These live on scope=planetary.
