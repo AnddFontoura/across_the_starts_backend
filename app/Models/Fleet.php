@@ -21,11 +21,13 @@ class Fleet extends Model
         'name',
         'x',
         'y',
+        'energy',
     ];
 
     protected $casts = [
         'x' => 'integer',
         'y' => 'integer',
+        'energy' => 'integer',
     ];
 
     public function user(): BelongsTo

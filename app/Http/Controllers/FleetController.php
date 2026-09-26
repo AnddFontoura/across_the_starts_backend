@@ -78,6 +78,20 @@ class FleetController extends Controller
             ]);
             $fleet->slots()->delete();
             $this->syncSlots($fleet, $data['slots']);
+
+            // Recomposition can shrink the tank: clamp stored energy to the new
+            // capacity so a fleet never holds more than it can carry.
+            $capacity = (int) $this->composition->summarize(
+                array_map(fn ($s) => [
+                    'ship_design_id' => (int) $s['ship_design_id'],
+                    'quantity' => (int) $s['quantity'],
+                ], $data['slots']),
+            )['energy_capacity'];
+
+            if ((int) $fleet->energy > $capacity) {
+                $fleet->energy = $capacity;
+                $fleet->save();
+            }
         });
 
         return response()->json([
@@ -109,6 +123,13 @@ class FleetController extends Controller
     {
         $this->authorizeFleet($request, $fleet);
 
+        // A stranded fleet (no energy) can't move. It can still be attacked.
+        if ((int) $fleet->energy <= 0) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'energy' => ['A frota está sem energia e não pode se mover. Reabasteça-a primeiro.'],
+            ]);
+        }
+
         $data = $request->validate([
             'x' => ['required', 'integer', 'min:0'],
             'y' => ['required', 'integer', 'min:0'],
@@ -125,6 +146,63 @@ class FleetController extends Controller
         return response()->json([
             'message' => 'Frota reposicionada.',
             'fleet' => $this->serializeFleet($fleet->fresh()),
+        ]);
+    }
+
+    /**
+     * Set a fleet's energy to an absolute target amount (0..capacity). The
+     * difference is reconciled against the player's shared energy pool: filling
+     * up debits the pool, draining it back refunds the pool. A fleet in battle
+     * can't be refueled.
+     */
+    public function refuel(Request $request, Fleet $fleet): JsonResponse
+    {
+        $this->authorizeFleet($request, $fleet);
+        $user = $request->user();
+
+        $data = $request->validate([
+            'energy' => ['required', 'integer', 'min:0'],
+        ]);
+
+        // Tank capacity for this composition.
+        $fleet->loadMissing('slots');
+        $slots = $fleet->slots->map(fn (FleetSlot $s) => [
+            'ship_design_id' => (int) $s->ship_design_id,
+            'quantity' => (int) $s->quantity,
+        ])->all();
+        $capacity = (int) $this->composition->summarize($slots)['energy_capacity'];
+
+        $target = min((int) $data['energy'], $capacity);
+        $current = (int) $fleet->energy;
+        $delta = $target - $current; // >0 = fuel up (spend pool), <0 = drain (refund)
+
+        $wallet = \App\Models\Base::firstOrCreate([
+            'user_id' => $user->id,
+            'kind' => 'terrestrial',
+        ]);
+
+        if ($delta > 0 && (int) $wallet->energy < $delta) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'energy' => ["Energia insuficiente no estoque. Disponível: {$wallet->energy}."],
+            ]);
+        }
+
+        DB::transaction(function () use ($fleet, $wallet, $target, $delta) {
+            if ($delta > 0) {
+                $wallet->decrement('energy', $delta);
+            } elseif ($delta < 0) {
+                // Drained energy returns to the pool (not counted as collected).
+                $wallet->creditResourceRaw('energy', -$delta);
+            }
+
+            $fleet->energy = $target;
+            $fleet->save();
+        });
+
+        return response()->json([
+            'message' => 'Frota reabastecida.',
+            'fleet' => $this->serializeFleet($fleet->fresh()),
+            ...$this->snapshot($request),
         ]);
     }
 
@@ -203,6 +281,9 @@ class FleetController extends Controller
             'commander_name' => $fleet->commander?->name,
             'x' => $fleet->x,
             'y' => $fleet->y,
+            'energy' => (int) $fleet->energy,
+            'energy_capacity' => (int) $summary['energy_capacity'],
+            'in_battle' => $fleet->isInBattle(),
             'slots' => $slots,
             'summary' => $summary,
         ];

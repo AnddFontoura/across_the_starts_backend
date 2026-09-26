@@ -69,6 +69,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/fleets', [FleetController::class, 'store']);
     Route::put('/fleets/{fleet}', [FleetController::class, 'update']);
     Route::patch('/fleets/{fleet}/position', [FleetController::class, 'move']);
+    Route::patch('/fleets/{fleet}/refuel', [FleetController::class, 'refuel']);
     Route::delete('/fleets/{fleet}', [FleetController::class, 'destroy']);
 
     // Investigações interplanetárias (batalhas em tempo real, passo a passo)

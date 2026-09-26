@@ -73,6 +73,8 @@ class ShipDesignService
         $movement = (int) $base->movement;
         $shield = (int) $base->shield;
         $hull = (int) $base->hull;
+        $energyCapacity = (int) $base->energy_capacity;
+        $energyUpkeep = (int) $base->energy_upkeep;
         $usedSpace = 0;
         $buildTime = (int) $base->build_time;
 
@@ -88,6 +90,8 @@ class ShipDesignService
             $movement += (int) $mod->movement * $q;
             $shield += (int) $mod->shield * $q;
             $hull += (int) $mod->hull * $q;
+            $energyCapacity += (int) $mod->energy_capacity * $q;
+            $energyUpkeep += (int) $mod->energy_upkeep * $q;
             $usedSpace += (int) $mod->space * $q;
             $buildTime += (int) $mod->build_time_add * $q;
 
@@ -112,6 +116,10 @@ class ShipDesignService
             'weapon_type' => $weaponType,
             'weapon_range' => $weaponRange,
             'attack' => $weaponType ? $attackByType[$weaponType] : 0,
+            // Energy tank this single ship contributes (base + modules) and the
+            // energy one ship spends per combat action (attack or defense).
+            'energy_capacity' => $energyCapacity,
+            'energy_upkeep' => $energyUpkeep,
             'cost' => $cost,
             'build_time' => $buildTime,
         ];

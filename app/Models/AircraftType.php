@@ -33,6 +33,8 @@ class AircraftType extends Model
         'shield',
         'hull',
         'movement',
+        'energy_capacity',
+        'energy_upkeep',
         'special_attributes',
     ];
 
@@ -45,6 +47,8 @@ class AircraftType extends Model
         'shield' => 'integer',
         'hull' => 'integer',
         'movement' => 'integer',
+        'energy_capacity' => 'integer',
+        'energy_upkeep' => 'integer',
         'special_attributes' => 'array',
     ];
 

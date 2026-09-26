@@ -16,6 +16,8 @@ class BattleEvent extends Model
     public const TYPE_MOVE = 'move';
     public const TYPE_ATTACK = 'attack';
     public const TYPE_DESTROY = 'destroy';
+    public const TYPE_ENERGY = 'energy';
+    public const TYPE_STRANDED_LOST = 'stranded_lost';
     public const TYPE_BATTLE_END = 'battle_end';
 
     protected $fillable = [

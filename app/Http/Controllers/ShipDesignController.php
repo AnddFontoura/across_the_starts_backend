@@ -36,6 +36,8 @@ class ShipDesignController extends Controller
             'shield' => $t->shield,
             'hull' => $t->hull,
             'movement' => $t->movement,
+            'energy_capacity' => $t->energy_capacity,
+            'energy_upkeep' => $t->energy_upkeep,
             'build_time' => $t->build_time,
             'cost' => $t->cost(),
         ])->values();
@@ -54,6 +56,8 @@ class ShipDesignController extends Controller
             'space' => $m->space,
             'attack_type' => $m->attack_type,
             'range' => $m->range,
+            'energy_capacity' => $m->energy_capacity,
+            'energy_upkeep' => $m->energy_upkeep,
             'build_time_add' => $m->build_time_add,
             'cost' => $m->cost(),
             'is_weapon' => $m->isWeapon(),

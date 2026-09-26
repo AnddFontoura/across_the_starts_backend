@@ -147,6 +147,13 @@ class FleetCompositionService
         $totalShips = 0;
         $minMovement = null;
 
+        // Energy: the fleet's tank capacity is the sum of each ship's capacity
+        // (base + modules) times its quantity. The per-round combat drain is
+        // the sum of each surviving ship's upkeep, so we also expose the
+        // per-ship upkeep totals to let the battle scale by surviving ships.
+        $energyCapacity = 0;
+        $energyUpkeep = 0;
+
         // Fleet-wide attribute bonuses from the leading commander. Computed once
         // from the commander's effective attributes at its current level.
         $attrAtkPct = 0.0;
@@ -184,6 +191,8 @@ class FleetCompositionService
             $hull = (int) $summary['hull'];
             $shield = (int) $summary['shield'];
             $movement = (int) $summary['movement'];
+            $energyCapacity += (int) $summary['energy_capacity'] * $qty;
+            $energyUpkeep += (int) $summary['energy_upkeep'] * $qty;
 
             // Commander proficiency bonuses (percent), if a commander leads.
             $atkPct = 0;
@@ -242,6 +251,10 @@ class FleetCompositionService
             'shield' => $totalShield,
             'movement' => $movement,
             'ships' => $totalShips,
+            // Max energy tank for this composition and the total per-round
+            // combat drain when every ship is alive (scales down with losses).
+            'energy_capacity' => $energyCapacity,
+            'energy_upkeep' => $energyUpkeep,
         ];
     }
 

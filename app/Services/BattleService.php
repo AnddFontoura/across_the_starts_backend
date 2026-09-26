@@ -84,6 +84,18 @@ class BattleService
                     continue;
                 }
 
+                // A stranded fleet (no energy) can't move or attack this round.
+                // It stays put and remains a valid target. Fleets without an
+                // upkeep cost (e.g. enemies) are never stranded.
+                if ($this->isStranded($actor)) {
+                    $this->log($instance, $round, ++$seq, BattleEvent::TYPE_MOVE, $actor->id, null, [
+                        'stranded' => true,
+                        'from' => ['x' => $actor->x, 'y' => $actor->y],
+                        'to' => ['x' => $actor->x, 'y' => $actor->y],
+                    ]);
+                    continue;
+                }
+
                 // Battle may have ended mid-round (one side wiped out).
                 if ($this->sideWipedOut($instance)) {
                     break;
@@ -196,6 +208,15 @@ class BattleService
             return;
         }
 
+        // Attacking costs the actor energy (scaled by its surviving ships).
+        // A stranded actor never reaches here (gated in the round loop).
+        $this->spendEnergy($instance, $round, $seq, $actor, 'attack');
+
+        // Defending costs the target energy too (scaled by its surviving
+        // ships). Running out here doesn't stop it defending this hit, but it
+        // will be unable to act on its own turn.
+        $this->spendEnergy($instance, $round, $seq, $target, 'defense');
+
         $killsByStack = [];
         $totalKills = 0;
         $remainingDamage = $totalAttack;
@@ -247,6 +268,58 @@ class BattleService
             $target->alive = false;
             $target->save();
         }
+    }
+
+    // --- energy -------------------------------------------------------------
+
+    /**
+     * Whether a fleet is stranded: it has an upkeep cost but no energy left to
+     * pay it. Fleets with no upkeep (energy_upkeep = 0, e.g. enemy fleets) are
+     * treated as having unlimited energy and are never stranded.
+     */
+    protected function isStranded(BattleFleet $fleet): bool
+    {
+        return (int) $fleet->energy_upkeep > 0 && (int) $fleet->energy <= 0;
+    }
+
+    /** Number of ships still alive across a fleet's stacks. */
+    protected function survivingShips(BattleFleet $fleet): int
+    {
+        return (int) $fleet->ships->sum(fn (BattleShip $s) => max(0, (int) $s->quantity_remaining));
+    }
+
+    /**
+     * Drain a fleet's energy for one combat action (attack or defense). The
+     * cost is the fleet's per-ship upkeep times its surviving ships, so it
+     * falls as ships are lost. Fleets without upkeep spend nothing. The energy
+     * is clamped at 0 and the change is logged for the replay.
+     */
+    protected function spendEnergy(BattleInstance $instance, int $round, int &$seq, BattleFleet $fleet, string $action): void
+    {
+        $perShip = (int) $fleet->energy_upkeep;
+        if ($perShip <= 0) {
+            return; // unlimited energy (e.g. enemy fleets)
+        }
+
+        $cost = $perShip * $this->survivingShips($fleet);
+        if ($cost <= 0) {
+            return;
+        }
+
+        $before = (int) $fleet->energy;
+        $after = max(0, $before - $cost);
+        if ($after === $before) {
+            return;
+        }
+
+        $fleet->energy = $after;
+        $fleet->save();
+
+        $this->log($instance, $round, ++$seq, BattleEvent::TYPE_ENERGY, $fleet->id, null, [
+            'action' => $action,
+            'spent' => $before - $after,
+            'energy' => $after,
+        ]);
     }
 
     /**
@@ -432,8 +505,16 @@ class BattleService
                 ->get();
 
             foreach ($playerFleets as $bf) {
+                // A fleet that ran out of energy during the run can't make the
+                // trip home: even if some ships survived the fight, they are
+                // lost. Treat every surviving ship as an additional loss.
+                $stranded = $this->isStranded($bf);
+
                 foreach ($bf->ships as $stack) {
-                    $lost = (int) $stack->quantity - (int) $stack->quantity_remaining;
+                    $lost = $stranded
+                        ? (int) $stack->quantity
+                        : (int) $stack->quantity - (int) $stack->quantity_remaining;
+
                     if ($lost <= 0 || ! $stack->ship_design_id) {
                         continue;
                     }
@@ -453,10 +534,22 @@ class BattleService
                     }
                 }
 
-                // A fleet that lost every ship is disbanded entirely.
-                $survivors = $bf->ships()->where('quantity_remaining', '>', 0)->exists();
-                if (! $survivors && $bf->fleet_id) {
-                    Fleet::where('id', $bf->fleet_id)->delete();
+                if ($stranded) {
+                    $this->log($instance, (int) $instance->current_round, $this->nextSeq($instance), BattleEvent::TYPE_STRANDED_LOST, $bf->id, null, [
+                        'reason' => 'out_of_energy',
+                    ]);
+                }
+
+                // A fleet that lost every ship — or is stranded (destroyed for
+                // being unable to return) — is disbanded entirely. Survivors
+                // keep whatever energy they had left at the end of the fight.
+                $survivors = ! $stranded && $bf->ships()->where('quantity_remaining', '>', 0)->exists();
+                if ($bf->fleet_id) {
+                    if (! $survivors) {
+                        Fleet::where('id', $bf->fleet_id)->delete();
+                    } else {
+                        Fleet::where('id', $bf->fleet_id)->update(['energy' => (int) $bf->energy]);
+                    }
                 }
             }
 
@@ -541,6 +634,12 @@ class BattleService
     }
 
     // --- logging ------------------------------------------------------------
+
+    /** The next monotonic sequence number for events on this instance. */
+    protected function nextSeq(BattleInstance $instance): int
+    {
+        return ((int) (BattleEvent::where('battle_instance_id', $instance->id)->max('sequence') ?? 0)) + 1;
+    }
 
     protected function log(BattleInstance $instance, int $round, int $seq, string $type, ?int $actorId, ?int $targetId, array $payload = []): void
     {

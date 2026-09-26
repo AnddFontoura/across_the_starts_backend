@@ -149,6 +149,12 @@ class BattleSetupService
 
             $start = $this->playerStart($instance, $index);
 
+            // Energy: the fleet enters battle with whatever it was fueled to.
+            // Store the PER-SHIP upkeep so the round drain scales down as ships
+            // are lost (see BattleService::energyCost).
+            $totalShips = max(1, (int) $summary['ships']);
+            $perShipUpkeep = (int) round((int) $summary['energy_upkeep'] / $totalShips);
+
             $battleFleet = BattleFleet::create([
                 'battle_instance_id' => $instance->id,
                 'side' => BattleInstance::SIDE_PLAYER,
@@ -159,6 +165,8 @@ class BattleSetupService
                 'velocidade' => $velocidade,
                 'attack_percent' => 0, // player bonuses already folded per-ship
                 'defense_percent' => 0,
+                'energy' => (int) $fleet->energy,
+                'energy_upkeep' => $perShipUpkeep,
                 'x' => $start['x'],
                 'y' => $start['y'],
                 'movement' => max(1, (int) $summary['movement']),
