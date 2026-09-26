@@ -25,8 +25,8 @@ class CommanderController extends Controller
     }
 
     /**
-     * Start an hourly recruitment (one at a time, requires a built hangar,
-     * pool cap 30).
+     * Recruit a commander immediately, then start a one-hour cooldown before
+     * the next one (requires a built hangar, pool cap 30).
      */
     public function recruit(Request $request): JsonResponse
     {
@@ -34,7 +34,7 @@ class CommanderController extends Controller
         $this->commanders->recruit($user);
 
         return response()->json([
-            'message' => 'Recrutamento iniciado. Um novo comandante estará pronto em 1 hora.',
+            'message' => 'Comandante recrutado! Você poderá recrutar outro em 1 hora.',
             ...$this->snapshot($request),
         ], 201);
     }

@@ -12,14 +12,18 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Commander pool + hourly recruitment. Recruitment is unlocked once the player
- * has a built Aircraft Hangar (the ship factory). One recruitment runs at a
- * time and takes one hour, producing a generic "Comandante" with randomly
- * rolled proficiencies (I..V) and commander rank I.
+ * has a built Aircraft Hangar (the ship factory). Recruiting instantly adds a
+ * generic "Comandante" (randomly rolled proficiencies I..V, commander rank I)
+ * and starts a one-hour cooldown before the next one can be recruited.
+ *
+ * The CommanderRecruitment row is used as that cooldown marker: while its
+ * finishes_at is in the future no new commander may be recruited. It is not a
+ * pending commander (the commander is created immediately on recruit).
  */
 class CommanderService
 {
     public const POOL_MAX = 30;
-    public const RECRUIT_SECONDS = 3600; // 1 hour
+    public const RECRUIT_SECONDS = 3600; // 1 hour cooldown between recruitments
 
     public function __construct(protected FleetService $fleet)
     {
@@ -37,20 +41,22 @@ class CommanderService
         return (int) Commander::where('user_id', $user->id)->count();
     }
 
-    /** The player's active recruitment, if any. */
+    /** The player's active recruitment cooldown, if one is still running. */
     public function activeRecruitment(User $user): ?CommanderRecruitment
     {
         return CommanderRecruitment::where('user_id', $user->id)->first();
     }
 
     /**
-     * Start a recruitment. Requires a hangar, no recruitment already running,
-     * and room in the pool.
+     * Recruit a commander immediately, then start a one-hour cooldown before
+     * the next one can be recruited. Requires a hangar, no active cooldown, and
+     * room in the pool.
      *
      * @throws ValidationException
      */
-    public function recruit(User $user): CommanderRecruitment
+    public function recruit(User $user): Commander
     {
+        // Clear any expired cooldown so a finished timer doesn't block us.
         $this->settle($user);
 
         if (! $this->canRecruit($user)) {
@@ -61,7 +67,7 @@ class CommanderService
 
         if ($this->activeRecruitment($user) !== null) {
             throw ValidationException::withMessages([
-                'recruitment' => ['Já existe um recrutamento em andamento.'],
+                'recruitment' => ['Aguarde o tempo de recrutamento para recrutar outro comandante.'],
             ]);
         }
 
@@ -73,39 +79,7 @@ class CommanderService
 
         $definition = CommanderDefinition::where('is_recruitable', true)->firstOrFail();
 
-        return CommanderRecruitment::create([
-            'user_id' => $user->id,
-            'commander_definition_id' => $definition->id,
-            'finishes_at' => now()->addSeconds(self::RECRUIT_SECONDS),
-        ]);
-    }
-
-    /**
-     * Finalize a completed recruitment into a commander with random
-     * proficiencies. Respects the pool cap (if full when it completes, the
-     * recruitment stays pending until there's room). Returns the created
-     * commander or null.
-     */
-    public function settle(User $user, ?CarbonInterface $now = null): ?Commander
-    {
-        $now ??= now();
-
-        $recruitment = CommanderRecruitment::where('user_id', $user->id)
-            ->where('finishes_at', '<=', $now)
-            ->first();
-
-        if (! $recruitment) {
-            return null;
-        }
-
-        // Don't exceed the pool cap; keep it pending until there's room.
-        if ($this->poolCount($user) >= self::POOL_MAX) {
-            return null;
-        }
-
-        return DB::transaction(function () use ($recruitment, $user) {
-            $definition = $recruitment->definition;
-
+        return DB::transaction(function () use ($user, $definition) {
             $commander = Commander::create([
                 'user_id' => $user->id,
                 'commander_definition_id' => $definition->id,
@@ -121,13 +95,32 @@ class CommanderService
                 'prof_missile' => random_int(1, 5),
             ]);
 
-            $recruitment->delete();
+            // Start the cooldown that blocks the next recruitment.
+            CommanderRecruitment::create([
+                'user_id' => $user->id,
+                'commander_definition_id' => $definition->id,
+                'finishes_at' => now()->addSeconds(self::RECRUIT_SECONDS),
+            ]);
 
             return $commander;
         });
     }
 
-    /** Seconds remaining on the active recruitment (0 if none). */
+    /**
+     * Clear an expired recruitment cooldown so the player can recruit again.
+     * The commander itself was already created at recruit time, so this only
+     * removes the finished cooldown marker.
+     */
+    public function settle(User $user, ?CarbonInterface $now = null): void
+    {
+        $now ??= now();
+
+        CommanderRecruitment::where('user_id', $user->id)
+            ->where('finishes_at', '<=', $now)
+            ->delete();
+    }
+
+    /** Seconds remaining on the active recruitment cooldown (0 if none). */
     public function recruitmentRemaining(User $user, ?CarbonInterface $now = null): int
     {
         $now ??= now();
