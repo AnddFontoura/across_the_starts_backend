@@ -79,13 +79,22 @@ class CommanderService
 
         $definition = CommanderDefinition::where('is_recruitable', true)->firstOrFail();
 
-        return DB::transaction(function () use ($user, $definition) {
+        // Roll the growth factors that shape how this commander's attributes
+        // evolve with level. The four factors sum to at most 20 (see model).
+        $factors = Commander::rollGrowthFactors();
+
+        return DB::transaction(function () use ($user, $definition, $factors) {
             $commander = Commander::create([
                 'user_id' => $user->id,
                 'commander_definition_id' => $definition->id,
                 'name' => $definition->name,
                 // Simple commanders are always rank I; custom ones may differ.
                 'rank' => 1,
+                'level' => 1,
+                'growth_pontaria' => $factors['pontaria'],
+                'growth_desvio' => $factors['desvio'],
+                'growth_critico' => $factors['critico'],
+                'growth_velocidade' => $factors['velocidade'],
                 'prof_cruiser' => random_int(1, 5),
                 'prof_battleship' => random_int(1, 5),
                 'prof_frigate' => random_int(1, 5),
@@ -104,6 +113,33 @@ class CommanderService
 
             return $commander;
         });
+    }
+
+    /**
+     * Re-roll a commander's growth factors (used by the "Pergaminho do
+     * Caminho" item). The commander must belong to the given user. Returns the
+     * refreshed commander with its new factors.
+     *
+     * @throws ValidationException
+     */
+    public function rerollGrowthFactors(User $user, Commander $commander): Commander
+    {
+        if ($commander->user_id !== $user->id) {
+            throw ValidationException::withMessages([
+                'commander' => ['Este comandante não pertence a você.'],
+            ]);
+        }
+
+        $factors = Commander::rollGrowthFactors();
+
+        $commander->update([
+            'growth_pontaria' => $factors['pontaria'],
+            'growth_desvio' => $factors['desvio'],
+            'growth_critico' => $factors['critico'],
+            'growth_velocidade' => $factors['velocidade'],
+        ]);
+
+        return $commander->refresh();
     }
 
     /**

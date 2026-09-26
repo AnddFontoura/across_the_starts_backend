@@ -54,6 +54,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Commanders (account pool, hourly recruitment)
     Route::get('/commanders', [CommanderController::class, 'index']);
     Route::post('/commanders/recruit', [CommanderController::class, 'recruit']);
+    // Re-roll a commander's growth factors (consumes a Pergaminho do Caminho).
+    Route::post('/commanders/reroll-growth', [CommanderController::class, 'rerollGrowthFactors']);
 
     // Fleets (led by a commander, composed of ship designs)
     Route::get('/fleets', [FleetController::class, 'index']);

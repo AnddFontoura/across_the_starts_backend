@@ -175,7 +175,7 @@ class FleetController extends Controller
 
     protected function serializeFleet(Fleet $fleet): array
     {
-        $fleet->loadMissing(['commander', 'slots.design.baseType']);
+        $fleet->loadMissing(['commander.definition', 'slots.design.baseType']);
 
         $slots = $fleet->slots->map(fn (FleetSlot $s) => [
             'ship_design_id' => $s->ship_design_id,
@@ -237,7 +237,7 @@ class FleetController extends Controller
         $user = $request->user();
 
         $fleets = Fleet::where('user_id', $user->id)
-            ->with(['commander', 'slots.design.baseType'])
+            ->with(['commander.definition', 'slots.design.baseType'])
             ->orderBy('id')
             ->get()
             ->map(fn (Fleet $f) => $this->serializeFleet($f))

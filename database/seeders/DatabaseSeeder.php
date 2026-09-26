@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             AircraftTypeSeeder::class,
             ModuleTypeSeeder::class,
             CommanderSeeder::class,
+            ItemSeeder::class,
             GameSettingSeeder::class,
             AdminUserSeeder::class,
         ]);

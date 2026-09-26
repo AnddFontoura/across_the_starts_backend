@@ -24,9 +24,25 @@ use App\Services\ResearchBonusService;
  *  - the leading commander's proficiency bonuses apply: the ship-class bonus
  *    scales that class's ships (attack + defense), the weapon bonus scales the
  *    attack coming from that weapon type. Commander-rank bonus applies overall.
+ *  - the leading commander's attributes (pontaria/desvio/critico/velocidade)
+ *    also shape combat: pontaria and critico raise the fleet's damage dealt,
+ *    desvio raises its effective defense (damage taken drops), and velocidade
+ *    adds to the fleet's movement. The exact tuning is provisional (see the
+ *    ATTRIBUTE_*_PER_POINT constants) and will be revisited when combat is
+ *    fleshed out.
  */
 class FleetCompositionService
 {
+    /**
+     * Provisional per-point contribution of each commander attribute, expressed
+     * as a percentage of the relevant stat per attribute point. Kept small and
+     * centralised so combat balancing is a one-line change later.
+     */
+    public const ATTRIBUTE_ATTACK_PCT_PER_PONTARIA = 0.5;   // +0.5% attack per pontaria point
+    public const ATTRIBUTE_ATTACK_PCT_PER_CRITICO = 0.5;    // +0.5% attack per critico point
+    public const ATTRIBUTE_DEFENSE_PCT_PER_DESVIO = 0.5;    // +0.5% defense per desvio point
+    public const ATTRIBUTE_MOVEMENT_PER_VELOCIDADE = 0.1;   // +0.1 movement per velocidade point
+
     public function __construct(
         protected ShipDesignService $designs,
         protected ResearchBonusService $researchBonus,
@@ -131,6 +147,19 @@ class FleetCompositionService
         $totalShips = 0;
         $minMovement = null;
 
+        // Fleet-wide attribute bonuses from the leading commander. Computed once
+        // from the commander's effective attributes at its current level.
+        $attrAtkPct = 0.0;
+        $attrDefPct = 0.0;
+        $movementBonus = 0.0;
+        if ($commander) {
+            $attrs = $commander->attributes();
+            $attrAtkPct = $attrs['pontaria'] * self::ATTRIBUTE_ATTACK_PCT_PER_PONTARIA
+                + $attrs['critico'] * self::ATTRIBUTE_ATTACK_PCT_PER_CRITICO;
+            $attrDefPct = $attrs['desvio'] * self::ATTRIBUTE_DEFENSE_PCT_PER_DESVIO;
+            $movementBonus = $attrs['velocidade'] * self::ATTRIBUTE_MOVEMENT_PER_VELOCIDADE;
+        }
+
         foreach ($slots as $s) {
             $qty = (int) $s['quantity'];
             if ($qty <= 0) {
@@ -175,6 +204,11 @@ class FleetCompositionService
                 $rankLevel = (int) $commander->rank;
                 $atkPct += $bonuses['commander'][$rankLevel]['attack'] ?? 0;
                 $defPct += $bonuses['commander'][$rankLevel]['defense'] ?? 0;
+
+                // Commander attributes: pontaria/critico raise damage dealt,
+                // desvio raises effective defense (damage taken drops).
+                $atkPct += $attrAtkPct;
+                $defPct += $attrDefPct;
             }
 
             // Researched attack bonuses: per aircraft class and per weapon type
@@ -195,11 +229,18 @@ class FleetCompositionService
             $minMovement = $minMovement === null ? $movement : min($minMovement, $movement);
         }
 
+        // Velocidade adds flat movement to the fleet's pace (the slowest ship
+        // still sets the base). Only when the fleet actually has ships.
+        $movement = $minMovement ?? 0;
+        if ($movement > 0 && $movementBonus > 0) {
+            $movement = (int) round($movement + $movementBonus);
+        }
+
         return [
             'attack' => $totalAttack,
             'hull' => $totalHull,
             'shield' => $totalShield,
-            'movement' => $minMovement ?? 0,
+            'movement' => $movement,
             'ships' => $totalShips,
         ];
     }

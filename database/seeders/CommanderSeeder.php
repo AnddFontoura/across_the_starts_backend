@@ -22,6 +22,14 @@ class CommanderSeeder extends Seeder
                 'color' => '#c9a24b',
                 'is_recruitable' => true,
                 'max_rank' => 1, // simple commanders are always rank I
+                // Simple commanders gain 1 attribute point per level (plus the
+                // per-attribute growth factor rolled at recruitment).
+                'natural_growth_per_level' => 1,
+                // Base attributes at level 1.
+                'base_pontaria' => 0,
+                'base_desvio' => 0,
+                'base_critico' => 0,
+                'base_velocidade' => 0,
             ]
         );
 
