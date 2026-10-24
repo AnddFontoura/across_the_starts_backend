@@ -13,6 +13,15 @@ use App\Http\Controllers\ShipDesignController;
 use App\Http\Controllers\StructureController;
 use Illuminate\Support\Facades\Route;
 
+// Health check (público) — útil pra descobrir se a API está no ar
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'ok',
+        'service' => config('app.name'),
+        'timestamp' => now()->toIso8601String(),
+    ]);
+});
+
 // Public auth endpoints
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
